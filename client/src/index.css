@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #6366F1;
+  --color-dark: #0F172A;
+  --color-card: #1E293B;
+}
+
+html,
+body,
+#root{
+  height:100%;
+}
+
+body{
+  margin:0;
+}
