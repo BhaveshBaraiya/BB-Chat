@@ -18,11 +18,23 @@ const messageSchema = new mongoose.Schema( {
             default:""
         },
 
-        image:{
-            type:String,
-            default:""
+        images:{
+        type:[String],
+        default:[]
         },
 
+        documents:[
+        {
+        fileUrl:String,
+        fileName:String,
+        fileSize:String
+        }
+        ],
+
+        audio:{
+        type:String,
+        default:""
+        },
         delivered: {
             type:Boolean,
             default:false
@@ -46,6 +58,22 @@ const messageSchema = new mongoose.Schema( {
             }
         }
     ],
+
+    edited:{
+        type:Boolean,
+        default:false
+    },
+
+    pinned:{
+        type:Boolean,
+        default:false
+    },
+
+    pinnedBy:{
+        type:mongoose.Schema.Types.ObjectId,
+        ref:"User",
+        default:null
+    },
 
     deletedFor:{
         type:[mongoose.Schema.Types.ObjectId],

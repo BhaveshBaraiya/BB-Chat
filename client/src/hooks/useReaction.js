@@ -1,81 +1,52 @@
 import { useContext } from "react";
 import axiosInstance from "../services/axios";
+import { ChatContext } from "../context/ChatContext";
 
-import { ChatContext }
-from "../context/ChatContext";
+export default function useReaction() {
 
-import { SocketContext }
-from "../context/SocketContext";
+    const { setMessages } =
+        useContext(ChatContext);
 
-export default function useReaction(){
+    const reactToMessage =
+    async(messageId,emoji)=>{
 
-const {
-    selectedChat,
-    setMessages
-}=useContext(
-    ChatContext
-);
+        try{
 
-const {socket}=
-useContext(
-    SocketContext
-);
+            const {data}=
+            await axiosInstance.put(
+                "/messages/react",
+                {
+                    messageId,
+                    emoji
+                }
+            );
 
-const reactToMessage=
-async(
-messageId,
-emoji
-)=>{
+            setMessages(prev=>
 
-try{
+                prev.map(msg=>
 
-const {data}=
+                    msg._id===messageId
+                    ? data.message
+                    : msg
 
-await axiosInstance.put(
-"/messages/react",
-{
-    messageId,
-    emoji
-}
-);
+                )
 
-setMessages(prev=>
+            );
 
-prev.map(msg=>
+        }
 
-msg._id===messageId
+        catch(error){
 
-?data.message
+            console.log(
+                error
+            );
 
-:msg
+        }
 
-)
+    };
 
-);
-
-socket.emit(
-"messageReaction",
-{
-receiverId:
-selectedChat._id,
-
-message:
-data.message
-}
-);
-
-}
-
-catch(error){
-
-console.log(error);
-
-}
-
-};
-
-return {
-reactToMessage
-};
+    return{
+        reactToMessage
+    };
 
 }

@@ -11,7 +11,6 @@ import userRoutes from "./routes/userRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import { initializeSocket } from "./socket/socket.js";
 
-
 connectDB();
 
 const app = express();
@@ -30,6 +29,7 @@ app.get("/", (req, res) => {
     res.send("Chat API Running");
 });
 
+app.use("/uploads", express.static("uploads"));
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/messages",messageRoutes);

@@ -11,26 +11,26 @@ export const getMessages = async (req, res) => {
         const { id: userToChatId } = req.params;
         const myId = req.user._id;
 
-        const messages=await MessageModel.find({
-                $or:[
+        const messages = await MessageModel.find({
+            $or: [
 
-                    {
-                        senderId:myId,
-                        receiverId:userToChatId
-                    },
+                {
+                    senderId: myId,
+                    receiverId: userToChatId
+                },
 
-                    {
-                        senderId:userToChatId,
-                        receiverId:myId
-                    }
-
-                ],
-
-                deletedFor:{
-                    $ne:myId
+                {
+                    senderId: userToChatId,
+                    receiverId: myId
                 }
 
-            })
+            ],
+
+            deletedFor: {
+                $ne: myId
+            }
+
+        })
             .populate(
                 "replyTo"
             );
@@ -50,100 +50,81 @@ export const getMessages = async (req, res) => {
     }
 };
 
-export const sendMessage = async(req,res)=>{
+export const sendMessage = async (req, res) => {
+    try {
+        const files = req.files || [];
+        const images = [];
+        const documents = [];
+        const audio = files.find(file => file.mimetype.startsWith("audio"));
+            const audioPath = audio ? `/uploads/${audio.filename}`: "";
 
-    try{
+        // Distribute files based on their mimetype
+        files.forEach(file => {
+            if (file.mimetype.startsWith("image")) {
+                images.push(`/uploads/${file.filename}`);
+            } else {
+                documents.push({
+                    fileUrl: `/uploads/${file.filename}`,
+                    fileName: file.originalname,
+                    fileSize: (file.size / 1024).toFixed(1) + " KB"
+                });
+            }
+        });
 
-        const { 
-            text,
-            replyTo
-        } = req.body;
+        const { text, replyTo } = req.body;
+        const { id: receiverId } = req.params;
+        const senderId = req.user._id;
 
-        const {
-            id:receiverId
-        } = req.params;
+        const receiverSocketId = userSocketMap.get(receiverId.toString());
 
-        const senderId =
-            req.user._id;
+       const newMessage = await MessageModel.create({
 
+        senderId,
+        receiverId,
 
-        const receiverSocketId=
-            userSocketMap.get(
-                receiverId.toString()
-            );
+        text,
 
+        images,
+        documents,
 
-        const newMessage=
-            await MessageModel.create({
+        audio:audioPath,
 
-                senderId,
-                receiverId,
+        replyTo:
+        replyTo||null,
 
-                text,
+        delivered:
+        !!receiverSocketId,
 
-                replyTo:
-                    replyTo || null,
+        seen:false
 
-                delivered:
-                    !!receiverSocketId,
+        });
+        // Populate the reply target text to send back to frontend
+        const populatedMessage = await MessageModel
+            .findById(newMessage._id)
+            .populate("replyTo", "text senderId");
 
-                seen:false
-
-            });
-
-
-        // populate reply message
-        const populatedMessage =
-            await MessageModel
-            .findById(
-                newMessage._id
-            )
-            .populate(
-                "replyTo",
-                "text senderId"
-            );
-
-
-        if(receiverSocketId){
-
-            io.to(
-                receiverSocketId
-            ).emit(
-                "newMessage",
-                populatedMessage
-            );
-
+        // Fire real-time event if receiver is connected
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("newMessage", populatedMessage);
         }
 
-
         res.status(201).json({
-
-            success:true,
-
-            message:
-                populatedMessage
-
+            success: true,
+            message: populatedMessage
         });
 
-    }
-
-    catch(error){
-
+    } catch (error) {
+        console.error("SEND MESSAGE ERROR:", error);
         res.status(500).json({
-
-            success:false,
-
-            message:error.message
-
+            success: false,
+            message: error.message
         });
-
     }
-
 };
 
-export const getUnreadCounts = async(req,res)=>{
+export const getUnreadCounts = async (req, res) => {
 
-    try{
+    try {
 
         const myId =
             new mongoose.Types.ObjectId(
@@ -153,44 +134,44 @@ export const getUnreadCounts = async(req,res)=>{
         const unread =
             await MessageModel.aggregate([
 
-            {
-                $match:{
-                    receiverId:myId,
-                    seen:false
-                }
-            },
+                {
+                    $match: {
+                        receiverId: myId,
+                        seen: false
+                    }
+                },
 
-            {
-                $group:{
-                    _id:"$senderId",
-                    count:{
-                        $sum:1
+                {
+                    $group: {
+                        _id: "$senderId",
+                        count: {
+                            $sum: 1
+                        }
                     }
                 }
-            }
 
-        ]);
+            ]);
 
-        const counts={};
+        const counts = {};
 
-        unread.forEach(item=>{
+        unread.forEach(item => {
 
             counts[
                 item._id.toString()
-            ]=item.count;
+            ] = item.count;
 
         });
 
         res.status(200).json({
 
-            success:true,
+            success: true,
             counts
 
         });
 
     }
 
-    catch(error){
+    catch (error) {
 
         console.log(
             "Unread Error:",
@@ -199,8 +180,8 @@ export const getUnreadCounts = async(req,res)=>{
 
         res.status(500).json({
 
-            success:false,
-            message:error.message
+            success: false,
+            message: error.message
 
         });
 
@@ -208,166 +189,274 @@ export const getUnreadCounts = async(req,res)=>{
 
 };
 
-export const reactToMessage =
-async(req,res)=>{
+export const reactToMessage = async (req, res) => {
+    try {
+        const { messageId, emoji } = req.body;
+        const userId = req.user._id;
 
-try{
+        const message = await MessageModel.findById(messageId);
 
-    const {
-        messageId,
-        emoji
-    }=req.body;
-
-    const userId=
-    req.user._id;
-
-    const message=
-    await MessageModel.findById(
-        messageId
-    );
-
-    if(!message){
-
-        return res.status(404)
-        .json({
-
-            success:false,
-            message:
-            "Message not found"
-
-        });
-
-    }
-
-    // already reacted?
-    const existingReaction=
-    message.reactions.find(
-
-        reaction=>
-
-        reaction.userId
-        .toString()===
-        userId.toString()
-
-    );
-
-    if(existingReaction){
-
-        // replace emoji
-        existingReaction.emoji=
-        emoji;
-
-    }
-
-    else{
-
-        message.reactions.push({
-
-            userId,
-            emoji
-
-        });
-
-    }
-
-    await message.save();
-
-    res.status(200).json({
-
-        success:true,
-        message
-
-    });
-
-}
-
-catch(error){
-
-    console.log(error);
-
-    res.status(500).json({
-
-        success:false,
-        message:error.message
-
-    });
-
-}
-
-};
-
-export const deleteForMe=async(
-    req,
-    res
-)=>{
-
-try{
-
-await MessageModel.findByIdAndUpdate(
-
-    req.params.id,
-
-    {
-        $addToSet:{
-            deletedFor:req.user._id
+        if (!message) {
+            return res.status(404).json({
+                success: false,
+                message: "Message not found"
+            });
         }
+
+        const existingReaction = message.reactions.find(
+            reaction =>
+                reaction.userId.toString() ===
+                userId.toString()
+        );
+
+        if (existingReaction) {
+            existingReaction.emoji = emoji;
+        } else {
+            message.reactions.push({
+                userId,
+                emoji
+            });
+        }
+
+        await message.save();
+
+        const updatedMessage =
+            await MessageModel.findById(messageId);
+
+        // receiver socket
+        const receiverSocketId =
+            userSocketMap.get(
+                message.receiverId.toString()
+            );
+
+        // sender socket
+        const senderSocketId =
+            userSocketMap.get(
+                message.senderId.toString()
+            );
+
+        // emit to both users
+        [receiverSocketId, senderSocketId]
+            .forEach(socketId => {
+
+                if (socketId) {
+
+                    io.to(socketId).emit(
+                        "messageReactionUpdated",
+                        updatedMessage
+                    );
+
+                }
+
+            });
+
+        res.status(200).json({
+            success: true,
+            message: updatedMessage
+        });
+
+    } catch (error) {
+
+        console.log(error);
+
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+
     }
+};
 
-);
+export const deleteForMe = async (req, res) => {
 
-res.json({
-    success:true
-});
+    try {
 
-}
+        const message =
+            await MessageModel.findByIdAndUpdate(
+                req.params.id,
+                {
+                    $addToSet: {
+                        deletedFor: req.user._id
+                    }
+                },
+                { new: true }
+            );
 
-catch(error){
+        const receiverSocketId =
+            userSocketMap.get(
+                message.receiverId.toString()
+            );
 
-res.status(500).json({
-    success:false,
-    message:error.message
-});
+        const senderSocketId =
+            userSocketMap.get(
+                message.senderId.toString()
+            );
 
-}
+        [receiverSocketId, senderSocketId]
+            .forEach(socketId => {
+
+                if (socketId) {
+
+                    io.to(socketId).emit(
+                        "messageDeleted",
+                        {
+                            type: "deleteForMe",
+                            messageId: message._id,
+                            deletedFor: message.deletedFor
+                        }
+                    );
+
+                }
+
+            });
+
+        res.json({
+            success: true
+        });
+
+    } catch (error) {
+
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+
+    }
 
 };
 
+export const deleteForEveryone = async (req, res) => {
 
+    try {
 
-export const deleteForEveryone=async(
-    req,
-    res
-)=>{
+        const message =
+            await MessageModel.findByIdAndUpdate(
+                req.params.id,
+                {
+                    isDeletedForEveryone: true,
+                    text: ""
+                },
+                { new: true }
+            );
 
-try{
+        const receiverSocketId =
+            userSocketMap.get(
+                message.receiverId.toString()
+            );
 
-await MessageModel.findByIdAndUpdate(
+        const senderSocketId =
+            userSocketMap.get(
+                message.senderId.toString()
+            );
 
-    req.params.id,
+        [receiverSocketId, senderSocketId]
+            .forEach(socketId => {
 
-    {
+                if (socketId) {
 
-        isDeletedForEveryone:true,
+                    io.to(socketId).emit(
+                        "messageDeleted",
+                        {
+                            type: "deleteForEveryone",
+                            message
+                        }
+                    );
 
-        text:""
+                }
+
+            });
+
+        res.json({
+            success: true
+        });
+
+    } catch (error) {
+
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
 
     }
 
-);
+};
 
-res.json({
-    success:true
-});
+export const editMessage = async (req, res) => {
+    try {
+        const { text } = req.body;
+        const message = await MessageModel.findById(req.params.id);
 
-}
+        if (!message) {
+            return res.status(404).json({ success: false, message: "Message not found" });
+        }
 
-catch(error){
+        if (message.senderId.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
 
-res.status(500).json({
-    success:false,
-    message:error.message
-});
+        message.text = text;
+        message.edited = true;
 
-}
+        await message.save();
 
+        const receiverSocketId = userSocketMap.get(message.receiverId.toString());
+
+        const senderSocketId = userSocketMap.get(message.senderId.toString());
+
+        [receiverSocketId, senderSocketId].forEach(socketId => {
+            if (socketId) {
+                io.to(socketId).emit("messageEdited", message);
+            }
+        });
+
+        res.status(200).json({ success: true, message });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+export const togglePinMessage = async (req, res) => {
+    try {
+        const message = await MessageModel.findById(req.params.id);
+
+        if (!message) {
+            return res.status(404).json({
+                success: false
+            });
+        }
+
+        message.pinned = !message.pinned;
+        message.pinnedBy = message.pinned ? req.user._id : null;
+
+        await message.save();
+
+        const receiverSocketId =
+            userSocketMap.get(
+                message.receiverId.toString()
+            );
+
+        const senderSocketId =
+            userSocketMap.get(
+                message.senderId.toString()
+            );
+
+        [receiverSocketId, senderSocketId].forEach(socketId => {
+            if (socketId) {
+                io.to(socketId)
+                    .emit("messagePinned", message);
+            }
+        });
+
+        res.json({ success: true, message });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
 };

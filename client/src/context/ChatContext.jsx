@@ -5,24 +5,23 @@ import axiosInstance from "../services/axios";
 export const ChatContext = createContext();
 
 export default function ChatProvider({ children }) {
+
     const { socket } = useContext(SocketContext);
 
     const [selectedChat, setSelectedChat] = useState(null);
-    const [replyMessage,setReplyMessage] = useState(null);
+    const [replyMessage, setReplyMessage] = useState(null);
     const [messages, setMessages] = useState([]);
     const [typingUsers, setTypingUsers] = useState([]);
     const [unreadCounts, setUnreadCounts] = useState({});
 
-    // incoming messages
+
     useEffect(() => {
+
         if (!socket) return;
 
         const handleNewMessage = (message) => {
 
-            if (
-                !selectedChat ||
-                message.senderId !== selectedChat._id
-            ) {
+            if (!selectedChat || message.senderId !== selectedChat._id) {
 
                 setUnreadCounts(prev => ({
                     ...prev,
@@ -34,295 +33,295 @@ export default function ChatProvider({ children }) {
             }
 
             setMessages(prev => {
-                if (
-                    prev.some(
-                        m=>m._id===message._id
-                    )
-                ){
+
+                if (prev.some(m => m._id === message._id)) {
                     return prev;
                 }
 
-                return [...prev,message];
-
+                return [...prev, message];
             });
 
+            socket.emit("messageDelivered", {
+                messageId: message._id,
+                senderId: message.senderId
+            });
 
-            // RECEIVED = delivered
-            socket.emit(
-                "messageDelivered",
-                {
-                    messageId:message._id,
-                    senderId:message.senderId
-                }
-            );
-
-
-            // if chat open → seen
-            socket.emit(
-                "messageSeen",
-                {
-                    messageId:message._id,
-                    senderId:message.senderId
-                }
-            );      
-
+            socket.emit("messageSeen", {
+                messageId: message._id,
+                senderId: message.senderId
+            });
         };
 
-        socket.on(
-            "newMessage",
-            handleNewMessage
-        );
+        socket.on("newMessage", handleNewMessage);
 
-        return () => {
+        return () => socket.off("newMessage", handleNewMessage);
 
-            socket.off(
-                "newMessage",
-                handleNewMessage
-            );
-
-        };
-
-    },[socket,selectedChat]);
+    }, [socket, selectedChat]);
 
 
-    // typing
     useEffect(() => {
 
         if (!socket) return;
 
-        const handleTypingStart =
-        ({userId}) => {
+        const handleTypingStart = ({ userId }) => {
+            setTypingUsers(prev => [...new Set([...prev, userId])]);
+        };
 
-            setTypingUsers(prev =>
-                [...new Set([
-                    ...prev,
-                    userId
-                ])]
+        const handleTypingStop = ({ userId }) => {
+            setTypingUsers(prev => prev.filter(id => id !== userId));
+        };
+
+        socket.on("typing:start", handleTypingStart);
+        socket.on("typing:stop", handleTypingStop);
+
+        return () => {
+            socket.off("typing:start", handleTypingStart);
+            socket.off("typing:stop", handleTypingStop);
+        };
+
+    }, [socket]);
+
+
+    useEffect(() => {
+
+        if (!socket) return;
+
+        const handleDelivered = ({ messageId }) => {
+
+            setMessages(prev =>
+                prev.map(msg =>
+                    msg._id === messageId
+                        ? { ...msg, delivered:true }
+                        : msg
+                )
             );
 
         };
 
-        const handleTypingStop =
-        ({userId}) => {
+        socket.on("messageDelivered", handleDelivered);
 
-            setTypingUsers(prev =>
-                prev.filter(
-                    id=>id!==userId
+        return () =>
+            socket.off("messageDelivered", handleDelivered);
+
+    }, [socket]);
+
+
+    useEffect(() => {
+
+        if (!socket) return;
+
+        const handleSeen = ({ messageId }) => {
+
+            setMessages(prev =>
+                prev.map(msg =>
+                    msg._id === messageId
+                        ? { ...msg, seen:true }
+                        : msg
+                )
+            );
+
+        };
+
+        socket.on("messageSeen", handleSeen);
+
+        return () =>
+            socket.off("messageSeen", handleSeen);
+
+    }, [socket]);
+
+
+    // realtime reactions
+    useEffect(() => {
+
+        if (!socket) return;
+
+        const handleReactionUpdate = (updatedMessage) => {
+
+            setMessages(prev =>
+                prev.map(msg =>
+                    msg._id === updatedMessage._id
+                        ? updatedMessage
+                        : msg
                 )
             );
 
         };
 
         socket.on(
-            "typing:start",
-            handleTypingStart
+            "messageReactionUpdated",
+            handleReactionUpdate
         );
 
-        socket.on(
-            "typing:stop",
-            handleTypingStop
-        );
-
-        return ()=>{
-
+        return () =>
             socket.off(
-                "typing:start",
-                handleTypingStart
+                "messageReactionUpdated",
+                handleReactionUpdate
             );
 
-            socket.off(
-                "typing:stop",
-                handleTypingStop
-            );
+    }, [socket]);
 
-        };
-
-    },[socket]);
-
-
-    // delivered
     useEffect(()=>{
 
         if(!socket) return;
 
-        const handleDelivered=
-        ({messageId})=>{
-
-            setMessages(prev=>
-                prev.map(msg=>
-
-                msg._id===messageId
-
-                ?{
-                    ...msg,
-                    delivered:true
-                }
-
-                :msg
-            )
-            );
-
-        };
-
-        socket.on(
-            "messageDelivered",
-            handleDelivered
-        );
-
-        return ()=>{
-
-            socket.off(
-                "messageDelivered",
-                handleDelivered
-            );
-
-        };
-
-    },[socket]);
-
-
-    // seen
-    useEffect(()=>{
-        if(!socket) return;
-
-        const handleSeen=
-        ({messageId})=>{
+        const handleEdited=
+            (updatedMessage)=>{
 
             setMessages(prev=>
 
                 prev.map(msg=>
 
-                msg._id===messageId
+                    msg._id===
+                    updatedMessage._id
 
-                ?{
-                    ...msg,
-                    seen:true
-                }
+                    ? updatedMessage
 
-                :msg
+                    : msg
 
-            )
+                )
 
             );
 
         };
 
         socket.on(
-            "messageSeen",
-            handleSeen
+            "messageEdited",
+            handleEdited
         );
 
-        return ()=>{
+        return()=>{
 
             socket.off(
-                "messageSeen",
-                handleSeen
+                "messageEdited",
+                handleEdited
             );
 
         };
 
     },[socket]);
 
-    // realtime reactions
-useEffect(()=>{
-
-if(!socket) return;
-
-const handleReaction=
-(updatedMessage)=>{
-
-setMessages(prev=>
-
-prev.map(msg=>
-
-msg._id===
-updatedMessage._id
-
-?updatedMessage
-
-:msg
-
-)
-
-);
-
-};
-
-socket.on(
-"messageReaction",
-handleReaction
-);
-
-return()=>{
-
-socket.off(
-"messageReaction",
-handleReaction
-);
-
-};
-
-},[socket]);
-
-  useEffect(() => {
+    useEffect(()=>{
 
     if(!socket) return;
 
-    const loadUnread = async()=>{
+    const handlePin=
+    updatedMessage=>{
 
-        try{
+        setMessages(prev=>
 
-            const {data}=
-            await axiosInstance.get(
-                "/messages/unread"
-            );
+            prev.map(msg=>
 
-            console.log(
-                "Unread:",
-                data.counts
-            );
+                msg._id===
+                updatedMessage._id
 
-            setUnreadCounts(
-                data.counts || {}
-            );
+                ? updatedMessage
 
-        }
-        catch(error){
+                : msg
 
-            console.log(
-                "Unread load error:",
-                error
-            );
+            )
 
-        }
+        );
 
     };
 
-    // initial load
-    loadUnread();
-
-    // whenever socket reconnects
     socket.on(
-        "connect",
-        loadUnread
+        "messagePinned",
+        handlePin
     );
 
-    return ()=>{
+    return()=>{
 
         socket.off(
-            "connect",
-            loadUnread
+            "messagePinned",
+            handlePin
         );
 
     };
 
 },[socket]);
 
+
+    useEffect(() => {
+
+        if (!socket) return;
+
+        const loadUnread = async () => {
+
+            try {
+
+                const { data } =
+                    await axiosInstance.get("/messages/unread");
+
+                setUnreadCounts(data.counts || {});
+
+            } catch (error) {
+
+                console.log(error);
+
+            }
+
+        };
+
+        loadUnread();
+
+        socket.on("connect", loadUnread);
+
+        return () =>
+            socket.off("connect", loadUnread);
+
+    }, [socket]);
+
+    useEffect(()=>{
+
+    if(!socket) return;
+
+    const handleDelete = (data)=>{
+
+        if(data.type==="deleteForEveryone"){
+
+            setMessages(prev=>
+                prev.map(msg=>
+                    msg._id===data.message._id
+                    ? data.message
+                    : msg
+                )
+            );
+
+        }
+
+
+       if(data.type==="deleteForMe"){
+
+            setMessages(prev=>
+                prev.filter(
+                    msg=>
+                    msg._id !== data.messageId
+                )
+            );
+
+        }
+
+    };
+
+    socket.on(
+        "messageDeleted",
+        handleDelete
+    );
+
+    return()=>{
+
+        socket.off(
+            "messageDeleted",
+            handleDelete
+        );
+
+    };
+
+},[socket]);
+
+
     return (
-
-        <ChatContext.Provider
-            value={{
-
+        <ChatContext.Provider value={{
             selectedChat,
             setSelectedChat,
 
@@ -337,13 +336,8 @@ handleReaction
 
             unreadCounts,
             setUnreadCounts
-
         }}>
-
             {children}
-
         </ChatContext.Provider>
-
     );
-
 }
