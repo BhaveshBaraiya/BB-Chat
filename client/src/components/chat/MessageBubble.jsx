@@ -10,7 +10,7 @@ import useReaction from "../../hooks/useReaction";
 import useEditMessage from "../../hooks/useEditMessage";
 import usePinMessage from "../../hooks/usePinMessage";
 
-const BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
+const BASE_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
 
 const getMediaUrl = (url) => {
     if (!url) return "";
