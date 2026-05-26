@@ -30,7 +30,10 @@ const messageSchema = new mongoose.Schema( {
         fileSize:String
         }
         ],
-
+        isForwarded: {
+            type: Boolean,
+            default: false
+        },
         audio:{
         type:String,
         default:""

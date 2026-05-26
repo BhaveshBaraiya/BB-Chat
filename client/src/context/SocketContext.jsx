@@ -5,6 +5,7 @@ import { AuthContext } from "./AuthContext";
 export const SocketContext = createContext();
 
 export default function SocketProvider({ children }) {
+
     const { user } = useContext(AuthContext);
     const [socket, setSocket] = useState(null);
     const [onlineUsers, setOnlineUsers] = useState([]);
@@ -23,17 +24,16 @@ export default function SocketProvider({ children }) {
             console.log("🟢 SOCKET CONNECTED:", socketInstance.id);
         });
 
-        socketInstance.on("onlineUsers", (users) => {
-            setOnlineUsers(users);
-        });
+        socketInstance.on("onlineUsers", setOnlineUsers);
 
-        return () => {
-            socketInstance.disconnect();
-        };
+        return () => socketInstance.disconnect();
     }, [user]);
 
     return (
-        <SocketContext.Provider value={{ socket, onlineUsers }}>
+        <SocketContext.Provider value={{
+            socket,
+            onlineUsers
+        }}>
             {children}
         </SocketContext.Provider>
     );

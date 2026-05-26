@@ -1,25 +1,33 @@
 import multer from "multer";
-import fs from "fs";
+import { CloudinaryStorage } from "multer-storage-cloudinary";
+import cloudinary from "../config/cloudinary.js";
 
-// 1. Automatically create the 'uploads' directory if it doesn't exist
-const uploadDir = "uploads/";
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
+const storage = new CloudinaryStorage({
+    cloudinary,
+    params: async (req, file) => {
+        if (file.mimetype.startsWith("audio") || file.originalname === "voice.webm" || file.mimetype === "video/webm") {
+            return {
+                folder: "chat-app/audio",
+                resource_type: "video",
+            };
+        }
+        
+        if (file.mimetype.startsWith("image")) {
+            return {
+                folder: "chat-app/images",
+                resource_type: "image",
+                allowed_formats: ["jpg", "png", "jpeg", "webp"],
+                transformation: [{ width: 800, height: 800, crop: "limit" }]
+            };
+        }
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        // Replace spaces with dashes in original filename to prevent URL issues
-        const safeName = file.originalname.replace(/\s+/g, '-');
-        cb(null, Date.now() + "-" + safeName);
+        return {
+            folder: "chat-app/documents",
+            resource_type: "raw",
+        };
     }
 });
 
-const upload = multer({
-    storage
-});
+const upload = multer({ storage });
 
 export default upload;

@@ -52,58 +52,68 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
     try {
-        const files = req.files || [];
+        let allFiles = [];
+        
+        if (Array.isArray(req.files)) {
+            allFiles = req.files; 
+        } else if (req.files && typeof req.files === 'object') {
+            allFiles = Object.values(req.files).flat(); 
+        }
+        
+        const isVoiceNote = (file) => 
+            file.mimetype.startsWith("audio") || 
+            file.originalname === "voice.webm" || 
+            file.mimetype === "video/webm";
+
+        const audioFile = allFiles.find(isVoiceNote);
+        const otherFiles = allFiles.filter(file => !isVoiceNote(file));
+
         const images = [];
         const documents = [];
-        const audio = files.find(file => file.mimetype.startsWith("audio"));
-            const audioPath = audio ? `/uploads/${audio.filename}`: "";
 
-        // Distribute files based on their mimetype
-        files.forEach(file => {
+        const getFilePath = (file) => {
+            return file.path && file.path.startsWith("http") 
+                ? file.path 
+                : `/uploads/${file.filename}`;
+        };
+
+        const audioPath = audioFile ? getFilePath(audioFile) : "";
+        
+        otherFiles.forEach(file => {
             if (file.mimetype.startsWith("image")) {
-                images.push(`/uploads/${file.filename}`);
+                images.push(getFilePath(file));
             } else {
                 documents.push({
-                    fileUrl: `/uploads/${file.filename}`,
+                    fileUrl: getFilePath(file),
                     fileName: file.originalname,
                     fileSize: (file.size / 1024).toFixed(1) + " KB"
                 });
             }
         });
 
-        const { text, replyTo } = req.body;
+        const { text, replyTo, isForwarded } = req.body;
         const { id: receiverId } = req.params;
         const senderId = req.user._id;
 
         const receiverSocketId = userSocketMap.get(receiverId.toString());
 
-       const newMessage = await MessageModel.create({
-
-        senderId,
-        receiverId,
-
-        text,
-
-        images,
-        documents,
-
-        audio:audioPath,
-
-        replyTo:
-        replyTo||null,
-
-        delivered:
-        !!receiverSocketId,
-
-        seen:false
-
+        const newMessage = await MessageModel.create({
+            senderId,
+            receiverId,
+            text,
+            images,
+            documents,
+            audio: audioPath,
+            replyTo: replyTo || null,
+            delivered: !!receiverSocketId,
+            seen: false,
+            isForwarded: isForwarded || false,
         });
-        // Populate the reply target text to send back to frontend
+
         const populatedMessage = await MessageModel
             .findById(newMessage._id)
             .populate("replyTo", "text senderId");
 
-        // Fire real-time event if receiver is connected
         if (receiverSocketId) {
             io.to(receiverSocketId).emit("newMessage", populatedMessage);
         }

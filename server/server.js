@@ -1,53 +1,76 @@
 import express from "express";
 import dotenv from "dotenv";
-dotenv.config();
 import cors from "cors";
-
-import connectDB from "./config/db.js";
-import authRoutes from "./routes/authRoutes.js";
 import cookieParser from "cookie-parser";
 import http from "http";
+import path from "path";
+import { ExpressPeerServer } from 'peer';
+
+dotenv.config();
+
+
+// DB + Routes
+import connectDB from "./config/db.js";
+import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import { initializeSocket } from "./socket/socket.js";
 
+// Connect DB
 connectDB();
 
 const app = express();
 
+/* ========================
+MIDDLEWARE
+======================== */
+const allowedOrigins = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',') : [];
+
 app.use(
     cors({
-        origin: "http://localhost:5173",
-        credentials: true
+        origin: allowedOrigins,
+        credentials: true,
     })
 );
 
 app.use(express.json());
 app.use(cookieParser());
 
+/* ========================
+   HEALTH CHECK
+======================== */
+
 app.get("/", (req, res) => {
-    res.send("Chat API Running");
+    res.send("Chat API Running 🚀");
 });
 
-app.use("/uploads", express.static("uploads"));
+/* ========================
+   ROUTES
+======================== */
+
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api/messages",messageRoutes);
+app.use("/api/messages", messageRoutes);
+
+/* ========================
+   SOCKET
+======================== */
+
+const server = http.createServer(app);
+initializeSocket(server);
+
+const peerServer = ExpressPeerServer(server, {
+    debug: true,
+});
+
+app.use('/peerjs', peerServer);
+
+/* ========================
+   START SERVER
+======================== */
 
 const PORT = process.env.PORT || 5000;
 
-const server =
-    http.createServer(app);
-
-initializeSocket(server);
-
-server.listen(
-    PORT,
-    () => {
-
-        console.log(
-            `Server running on ${PORT}`
-        );
-
-    }
-);
+server.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+});

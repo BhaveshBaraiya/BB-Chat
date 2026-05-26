@@ -9,7 +9,9 @@ import {
     FiSend,
     FiMic,
     FiSquare,
-    FiX
+    FiX,
+    FiPause,
+    FiPlay
 } from "react-icons/fi";
 import EmojiPicker from "emoji-picker-react";
 
@@ -19,10 +21,13 @@ import { SocketContext } from "../../context/SocketContext";
 
 import useMessages from "../../hooks/useMessages";
 import useSendMessage from "../../hooks/useSendMessage";
-
+import { useAudioRecorder } from '../../hooks/useAudioRecorder'; 
 import MessageBubble from "./MessageBubble";
 import TypingIndicator from "./TypingIndicator";
 import ReplyPreview from "./ReplyPreview";
+
+import { CallContext } from "../../context/CallContext";
+import CallOverlay from "./CallOverlay";
 
 export default function ChatWindow() {
     const { selectedChat, setSelectedChat, typingUsers, setUnreadCounts } = useContext(ChatContext);
@@ -35,12 +40,88 @@ export default function ChatWindow() {
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [showEmoji, setShowEmoji] = useState(false);
     const [search, setSearch] = useState("");
+
+    const { call, setCall, myVideo, userVideo, peerRef, connectionRef } = useContext(CallContext);
     
-    // NEW AUDIO STATES
-    const [isRecording, setIsRecording] = useState(false);
-    const [audioBlob, setAudioBlob] = useState(null);
-    const mediaRecorderRef = useRef(null);
-    const audioChunksRef = useRef([]);
+    const {
+        isRecording,
+        isPaused,
+        recordingTime,
+        audioBlob,
+        audioUrl,
+        startRecording,
+        pauseRecording,
+        resumeRecording,
+        stopRecording,
+        cancelRecording,
+        discardAudio
+    } = useAudioRecorder();
+
+    const formatAudioTime = (seconds) => {
+        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+        const s = (seconds % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    };
+
+    const [showMenu, setShowMenu] = useState(false);
+
+    const initiateCall = async (type) => {
+
+    try {
+
+        const stream =
+        await navigator.mediaDevices.getUserMedia({
+            video:type==="video",
+            audio:true
+        });
+
+        myVideo.current.srcObject=stream;
+
+        setCall(prev=>({
+            ...prev,
+            stream,
+            active:true
+        }));
+
+
+        socket.emit(
+            "call:initiate",
+            {
+                to:selectedChat._id,
+                type,
+                peerId:peerRef.current.id
+            }
+        );
+
+
+        const outgoingCall=
+        peerRef.current.call(
+            selectedChat._id,
+            stream
+        );
+
+        outgoingCall.on("stream",
+            (remoteStream)=>{
+                userVideo.current.srcObject=
+                remoteStream
+            }
+        );
+
+        connectionRef.current=
+        outgoingCall;
+    }
+    catch(err){
+        console.log(err)
+    }
+};
+
+    const MoreOptionsMenu = ({ onClose, onClearChat, onBlockUser }) => (
+        <div className="absolute top-16 right-6 bg-white shadow-xl border border-slate-100 rounded-xl py-2 w-48 z-50">
+            <button onClick={onClearChat} className="w-full px-4 py-2 text-left hover:bg-slate-50 text-red-500 text-sm">Clear Chat</button>
+            <button onClick={onBlockUser} className="w-full px-4 py-2 text-left hover:bg-slate-50 text-slate-700 text-sm">Block User</button>
+            <button onClick={onClose} className="w-full px-4 py-2 text-left hover:bg-slate-50 text-slate-700 text-sm">Close</button>
+        </div>
+    );
 
     const messagesEndRef = useRef(null);
     const emojiRef = useRef(null);
@@ -49,7 +130,6 @@ export default function ChatWindow() {
     const filteredMessages = messages.filter(msg => 
         msg.text?.toLowerCase().includes(search.toLowerCase())
     );
-    const pinnedMessage = messages.find(msg => msg.pinned);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -71,6 +151,16 @@ export default function ChatWindow() {
             socket.off("userCameOnline", handleUserOnline);
         };
     }, [socket, selectedChat, user._id]);
+
+   useEffect(() => {
+        if (!socket) return;
+        socket.on("call:incoming", (data) => {
+            // In a real app, you would set a state here to show your <CallModal />
+            console.log(`Incoming ${data.type} call from ${data.from}`);
+            alert(`Incoming ${data.type} call!`);
+        });
+        return () => socket.off("call:incoming");
+    }, [socket]);
 
     useEffect(() => {
         if (!socket || !selectedChat) return;
@@ -117,47 +207,104 @@ export default function ChatWindow() {
         };
     }, []);
 
-    // AUDIO RECORDING LOGIC
-    const startRecording = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mediaRecorder = new MediaRecorder(stream);
-            mediaRecorderRef.current = mediaRecorder;
-            audioChunksRef.current = [];
+    useEffect(() => {
+        if (!socket) return;
+        socket.on("call:incoming",(data)=>{
 
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) audioChunksRef.current.push(e.data);
-            };
+            setCall({
+                isReceivingCall:true,
+                from:data.from,
+                type:data.type,
+                peerId:data.peerId
+            })
 
-            mediaRecorder.onstop = () => {
-                const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-                setAudioBlob(audioBlob);
-                stream.getTracks().forEach(track => track.stop()); // Stop mic usage
-            };
+            })
+        return () => socket.off("call:incoming");
+    }, [socket, setCall]);
 
-            mediaRecorder.start();
-            setIsRecording(true);
-        } catch (error) {
-            console.error("Error accessing microphone:", error);
-            alert("Microphone access denied or unavailable.");
+    const acceptCall=async()=>{
+
+        const stream=
+        await navigator.mediaDevices.getUserMedia({
+
+        video:call.type==="video",
+        audio:true
+
+        })
+
+        myVideo.current.srcObject=
+        stream
+
+
+        setCall(prev=>({
+
+        ...prev,
+        stream,
+        active:true,
+        isReceivingCall:false
+
+        }))
+
+
+        const incomingCall=
+        peerRef.current.call(
+            call.peerId,
+            stream
+        )
+
+
+        incomingCall.on(
+            "stream",
+            (remoteStream)=>{
+
+            userVideo.current.srcObject=
+            remoteStream
+
+        })
+
+        connectionRef.current=
+        incomingCall
+
         }
-    };
+const endCall=()=>{
 
-    const stopRecording = () => {
-        if (mediaRecorderRef.current && isRecording) {
-            mediaRecorderRef.current.stop();
-            setIsRecording(false);
-        }
-    };
+connectionRef.current?.close()
+
+call.stream
+?.getTracks()
+.forEach(track=>track.stop())
+
+setCall({
+
+isReceivingCall:false,
+from:null,
+type:null,
+active:false,
+peerId:null,
+stream:null
+
+})
+
+}
+
+useEffect(()=>{
+
+if(call.stream && myVideo.current){
+
+myVideo.current.srcObject=
+call.stream
+
+}
+
+},[call.stream])
 
     const handleSend = () => {
         if (!text.trim() && selectedFiles.length === 0 && !audioBlob) return;
 
-        // Pass the audioBlob as the third parameter to your hook
         sendMessage(text, selectedFiles, audioBlob);
         setSelectedFiles([]);
         setText("");
-        setAudioBlob(null);
+        discardAudio();
     };
 
     if (!selectedChat) {
@@ -173,45 +320,32 @@ export default function ChatWindow() {
 
     return (
         <div className="h-screen flex flex-col w-full">
-            {/* HEADER */}
+            <CallOverlay onEndCall={endCall} onAccept={acceptCall} />
             <div className="h-[80px] bg-white border-b px-6 flex justify-between items-center z-10 relative">
                 <div className="flex gap-3 items-center">
-                    <input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search..."
-                        className="w-[180px] px-4 py-2 rounded-full bg-slate-100 outline-none text-sm"
-                    />
                     <button onClick={() => setSelectedChat(null)} className="md:hidden">
                         <FiArrowLeft size={22} />
                     </button>
-                    <img
-                        src={selectedChat.profilePic || `https://ui-avatars.com/api/?name=${selectedChat.fullName}`}
-                        className="w-12 h-12 rounded-full object-cover"
-                        alt="profile"
-                    />
+                    <img src={selectedChat.profilePic ? `${selectedChat.profilePic}?t=${Date.now()}` : `https://ui-avatars.com/api/?name=${selectedChat.fullName}`} className="w-12 h-12 rounded-full object-cover" alt="profile" />
                     <div>
                         <h2 className="font-semibold text-slate-800">{selectedChat.fullName}</h2>
-                        <p className={`text-sm ${isOnline ? "text-green-500" : "text-slate-400"}`}>
-                            {isOnline ? "Online" : "Offline"}
-                        </p>
+                        <p className={`text-sm ${isOnline ? "text-green-500" : "text-slate-400"}`}>{isOnline ? "Online" : "Offline"}</p>
                     </div>
                 </div>
 
                 <div className="flex gap-3 text-slate-600">
-                    <button className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition">
+                    <button onClick={() => initiateCall('audio')} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition">
                         <FiPhone />
                     </button>
-                    <button className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition">
+                    <button onClick={() => initiateCall('video')} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition">
                         <FiVideo />
                     </button>
-                    <button className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition">
+                    <button onClick={() => setShowMenu(!showMenu)} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition">
                         <FiMoreVertical />
                     </button>
+                    {showMenu && <MoreOptionsMenu onClose={() => setShowMenu(false)} />}
                 </div>
             </div>
-
-            {/* MESSAGES */}
             <div className="flex-1 overflow-y-auto px-6 py-6 bg-slate-50">
                 <div className="space-y-2">
                     {filteredMessages.map((message, index) => {
@@ -244,11 +378,9 @@ export default function ChatWindow() {
                 </div>
             </div>
 
-            {/* INPUT SECTION */}
             <div className="bg-white border-t px-4 py-4">
                 <ReplyPreview />
 
-                {/* File Previews */}
                 {selectedFiles.length > 0 && (
                     <div className="flex gap-2 mb-3 overflow-x-auto pb-2">
                         {selectedFiles.map((file, index) => (
@@ -271,17 +403,15 @@ export default function ChatWindow() {
                     </div>
                 )}
 
-                {/* Audio Preview Pill */}
                 {audioBlob && (
                     <div className="flex items-center gap-3 mb-3 bg-indigo-50 border border-indigo-100 p-2 rounded-full w-max">
-                        <audio src={URL.createObjectURL(audioBlob)} controls className="h-8 max-w-[200px]" />
-                        <button onClick={() => setAudioBlob(null)} className="bg-red-100 text-red-500 w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-200 transition">
+                        <audio src={audioUrl} controls className="h-8 max-w-[200px]" />
+                        <button type="button" onClick={discardAudio} className="bg-red-100 text-red-500 w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-200 transition">
                             <FiX size={16}/>
                         </button>
                     </div>
                 )}
 
-                {/* Input Bar */}
                 <div className="bg-slate-100 rounded-full px-4 h-[58px] flex items-center gap-3">
                     <div ref={emojiRef} className="relative">
                         <button
@@ -310,8 +440,43 @@ export default function ChatWindow() {
                     </label>
 
                     {isRecording ? (
-                        <div className="flex-1 flex items-center gap-2 text-red-500 font-medium animate-pulse">
-                            <span className="w-2 h-2 rounded-full bg-red-500"></span> Recording Audio...
+                        <div className="flex-1 flex items-center justify-between bg-red-50 rounded-full px-4 py-1.5 border border-red-100">
+                            <div className="flex items-center gap-3 text-red-500">
+                                <div className={`w-2.5 h-2.5 rounded-full bg-red-500 ${isPaused ? '' : 'animate-pulse'}`}></div>
+                                <span className="font-mono text-sm font-medium w-10">{formatAudioTime(recordingTime)}</span>
+                                
+                                <button 
+                                    type="button" 
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        isPaused ? resumeRecording() : pauseRecording();
+                                    }} 
+                                    className="text-red-500 hover:text-red-700 transition flex items-center justify-center p-1 rounded-full hover:bg-red-100"
+                                >
+                                    {isPaused ? <FiPlay size={16} /> : <FiPause size={16} />}
+                                </button>
+                            </div>
+                            
+                            <div className="flex items-center gap-4">
+                                <div className={`flex items-center gap-1 h-4 opacity-70 ${isPaused ? 'hidden' : ''}`}>
+                                    <div className="w-1 bg-red-400 h-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                    <div className="w-1 bg-red-400 h-2/3 animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                    <div className="w-1 bg-red-400 h-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                </div>
+                                <div className={`text-xs text-red-400 font-medium ${isPaused ? '' : 'hidden'}`}>Paused</div>
+                                
+                                <button 
+                                    type="button" 
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        cancelRecording();
+                                    }} 
+                                    className="text-red-400 hover:text-red-600 transition-colors p-1"
+                                >
+                                    <FiX size={18} />
+                                </button>
+                            </div>
                         </div>
                     ) : (
                         <input
@@ -329,11 +494,10 @@ export default function ChatWindow() {
                             }}
                             placeholder="Type a message..."
                             className="flex-1 bg-transparent outline-none text-slate-700 placeholder-slate-400"
-                            disabled={!!audioBlob} // Disable text input if audio is pending
+                            disabled={!!audioBlob}
                         />
                     )}
 
-                    {/* DYNAMIC BUTTON: Send vs Microphone */}
                     {text.trim() || selectedFiles.length > 0 || audioBlob ? (
                         <button
                             onClick={handleSend}

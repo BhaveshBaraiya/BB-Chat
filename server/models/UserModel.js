@@ -25,9 +25,9 @@ const userSchema = new mongoose.Schema(
             default: ""
         },
 
-        bio: {
-            type: String,
-            default: ""
+        bio:{
+        type:String,
+        default:"Hey there! I am using MERN Chat"
         }
     },
     {

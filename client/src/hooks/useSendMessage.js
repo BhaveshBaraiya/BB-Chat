@@ -21,7 +21,7 @@ export default function useSendMessage() {
                 formData.append("replyTo", replyMessage._id);
             }
 
-            // FIX: Append the audio to "files" instead of "audio" so Multer accepts it
+            // 👇 Send audio as a "file" so Multer accepts it without crashing
             if (audioBlob) {
                 formData.append(
                     "files",

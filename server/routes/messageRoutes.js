@@ -8,7 +8,10 @@ const router= express.Router();
 
 router.get("/unread", protect, getUnreadCounts);
 router.get("/:id", protect, getMessages);
-router.post("/send/:id", protect, upload.array("files",10), sendMessage);
+router.post("/send/:id", protect, upload.fields([
+    { name: "files", maxCount: 10 }, 
+    { name: "audio", maxCount: 1 }
+]), sendMessage);
 router.put("/edit/:id",protect, editMessage);
 router.put("/pin/:id", protect, togglePinMessage);
 router.put("/react", protect, reactToMessage);
