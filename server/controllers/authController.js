@@ -116,17 +116,19 @@ export const getCurrentUser = async (req, res) => {
 };
 
 export const logoutUser = async (req, res) => {
-
     res.cookie(
-        "token",
-        "",
-        {
-            maxAge: 0,
-            httpOnly: true,
-            sameSite: "strict",
-            secure: false
-        }
-    );
+    "token",
+    "",
+    {
+        expires: new Date(0),
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite:
+            process.env.NODE_ENV === "production"
+                ? "none"
+                : "lax"
+    }
+);
 
     res.status(200).json({
         success: true,
