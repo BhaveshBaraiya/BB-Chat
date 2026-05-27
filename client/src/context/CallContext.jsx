@@ -1,11 +1,11 @@
 import { createContext, useState, useRef, useEffect, useContext } from "react";
 import Peer from "peerjs";
-import { AuthContext } from "./AuthContext";
+import { useSelector } from "react-redux";
 
 export const CallContext = createContext();
 
 export const CallProvider = ({ children }) => {
-    const { user } = useContext(AuthContext);
+    const user = useSelector((state) => state.auth.user);
 
     const [call, setCall] = useState({
         isReceivingCall: false,
@@ -24,13 +24,11 @@ export const CallProvider = ({ children }) => {
 
     useEffect(() => {
         if (!user?._id) return;
-
+        const serverUrl = new URL(import.meta.env.VITE_SERVER_URL || "http://localhost:5000");
         peerRef.current = new Peer(user._id, {
-            host: import.meta.env.VITE_SERVER_URL.replace(
-                "https://",
-                ""
-            ),
-            secure: true,
+            host: serverUrl.hostname,
+            port: serverUrl.port || (serverUrl.protocol === "https:" ? 443 : 80),
+            secure: serverUrl.protocol === "https:",
             path: "/peerjs"
         });
 

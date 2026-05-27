@@ -1,12 +1,12 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useEffect, useState } from "react";
 import { io } from "socket.io-client";
-import { AuthContext } from "./AuthContext";
+import { useSelector } from "react-redux";
 
 export const SocketContext = createContext();
 
 export default function SocketProvider({ children }) {
 
-    const { user } = useContext(AuthContext);
+    const user = useSelector((state) => state.auth.user);
     const [socket, setSocket] = useState(null);
     const [onlineUsers, setOnlineUsers] = useState([]);
 
@@ -15,7 +15,7 @@ export default function SocketProvider({ children }) {
 
         const socketInstance = io(import.meta.env.VITE_SERVER_URL || "http://localhost:5000", {
             query: { userId: user._id },
-            transports: ["polling"], // FIX: Remove "websocket" to prevent PeerJS crash
+            transports: ["polling"],
             withCredentials: true
         });
 

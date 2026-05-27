@@ -1,15 +1,26 @@
-import { useContext, useState } from "react";
+import { useState } from "react";
 import UserList from "../chat/UserList";
-import { ChatContext } from "../../context/ChatContext";
+import { useDispatch } from "react-redux";
+import { setSelectedChat } from "../../redux/features/chatSlice";
 import useSearchUsers from "../../hooks/useSearchUsers";
 import { FiSearch } from "react-icons/fi";
 import SettingsContent from "../chat/SettingsContent";
 import StatusContent from "../chat/StatusContent";
+import axiosInstance from "../../services/axios";
 
 export default function Sidebar({ activeTab }) {
     const [query, setQuery] = useState("");
-    const { createOrOpenChat } = useContext(ChatContext);
+    const dispatch = useDispatch();
     const { users, searchUsers } = useSearchUsers();
+
+    const handleCreateOrOpenChat = async (user) => {
+        try {
+            const { data } = await axiosInstance.post("/conversations/create", { receiverId: user._id });
+            dispatch(setSelectedChat(data)); 
+        } catch (error) {
+            console.log(error);
+        }
+    };
 
     return (
         <div className="w-screen md:w-[350px] h-screen bg-white border-r border-slate-200 flex flex-col">
@@ -43,7 +54,7 @@ export default function Sidebar({ activeTab }) {
                             users.map(user => (
                                 <div
                                     key={user._id}
-                                    onClick={() => createOrOpenChat(user)}
+                                    onClick={() => handleCreateOrOpenChat(user)}
                                     className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 cursor-pointer"
                                 >
                                     <img

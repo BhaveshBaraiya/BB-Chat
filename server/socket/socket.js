@@ -1,5 +1,6 @@
 import { Server } from "socket.io";
 import MessageModel from "../models/MessageModel.js";
+import UserModel from "../models/UserModel.js";
 
 const userSocketMap = new Map();
 let io;
@@ -29,28 +30,55 @@ export const initializeSocket = (server) => {
 
         // Convert old undelivered messages
         if (userId) {
-            await MessageModel.updateMany(
-                { receiverId: userId, delivered: false },
-                { delivered: true }
-            );
 
-            // Notify senders about newly delivered messages
-            const newlyDelivered = await MessageModel.find({
+            const undeliveredMessages = await MessageModel.find({
                 receiverId: userId,
-                delivered: true,
-                seen: false
+                delivered: false
             });
 
-            newlyDelivered.forEach(msg => {
-                const senderSocket = userSocketMap.get(msg.senderId.toString());
-                if (senderSocket) {
-                    io.to(senderSocket).emit("messageDelivered", { messageId: msg._id });
+            for (const msg of undeliveredMessages) {
+
+                const sender = await UserModel.findById(msg.senderId);
+
+                const receiver = await UserModel.findById(msg.receiverId);
+
+                // CHECK BLOCK STATUS
+                const blocked =
+                    sender.blockedUsers?.includes(receiver._id) ||
+                    receiver.blockedUsers?.includes(sender._id);
+
+                // IF BLOCKED -> DO NOT DELIVER
+                if (blocked) {
+                    continue;
                 }
-            });
-        }
 
+                // MARK AS DELIVERED
+                msg.delivered = true;
+
+                await msg.save();
+
+                // SEND DOUBLE TICK EVENT
+                const senderSocket = userSocketMap.get(msg.senderId.toString());
+
+                if (senderSocket) {
+                    io.to(senderSocket).emit("messageDelivered", {
+                        messageId: msg._id
+                    });
+                }
+            }
+        }
         // --- Call Feature ---
-        socket.on("call:initiate",(data)=>{
+        socket.on("call:initiate",async(data)=>{
+
+            const caller = await UserModel.findById(userId);
+
+            const receiver = await UserModel.findById(data.to);
+
+            const blocked =
+                caller.blockedUsers?.includes(receiver._id) ||
+                receiver.blockedUsers?.includes(caller._id);
+
+            if (blocked) return;
         const receiverSocketId=userSocketMap.get(data.to);
         if(receiverSocketId){
             io.to(receiverSocketId).emit("call:incoming",{
@@ -78,22 +106,39 @@ export const initializeSocket = (server) => {
         // ==========================================
         // ADDED: The missing Message Router
         // ==========================================
-        socket.on("sendMessage", (message) => {
+        socket.on("sendMessage", async(message) => {
+            const sender = await UserModel.findById(message.senderId);
+            const receiver = await UserModel.findById(message.receiverId);
+            const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
+
+            if (blocked) {
+                return;
+            }
             const receiverSocketId = userSocketMap.get(message.receiverId);
             
-            // If the receiver is currently online, send the message to their socket
             if (receiverSocketId) {
                 io.to(receiverSocketId).emit("newMessage", message);
             }
         });
 
         // --- Chat Events ---
-        socket.on("typing:start", ({ receiverId, userId }) => {
+        socket.on("typing:start", async({ receiverId, userId }) => {
+            const sender = await UserModel.findById(userId);
+            const receiver = await UserModel.findById(receiverId);
+            const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
+
+            if (blocked) return;
             const receiverSocket = userSocketMap.get(receiverId);
             if (receiverSocket) io.to(receiverSocket).emit("typing:start", { userId });
         });
 
-        socket.on("typing:stop", ({ receiverId, userId }) => {
+        socket.on("typing:stop", async({ receiverId, userId }) => {
+
+            const sender = await UserModel.findById(userId);
+            const receiver = await UserModel.findById(receiverId);
+            const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
+
+            if (blocked) return;
             const receiverSocket = userSocketMap.get(receiverId);
             if (receiverSocket) io.to(receiverSocket).emit("typing:stop", { userId });
         });
@@ -104,6 +149,18 @@ export const initializeSocket = (server) => {
         });
 
         socket.on("messageSeen", async ({ messageId, senderId }) => {
+
+            const msg = await MessageModel.findById(messageId);
+
+            const sender = await UserModel.findById(msg.senderId);
+
+            const receiver = await UserModel.findById(msg.receiverId);
+
+            const blocked =
+                sender.blockedUsers?.includes(receiver._id) ||
+                receiver.blockedUsers?.includes(sender._id);
+
+        if (blocked) return;
             await MessageModel.findByIdAndUpdate(messageId, { seen: true });
             const senderSocket = userSocketMap.get(senderId);
             if (senderSocket) io.to(senderSocket).emit("messageSeen", { messageId });

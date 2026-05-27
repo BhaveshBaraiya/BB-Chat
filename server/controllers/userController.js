@@ -1,15 +1,32 @@
 import UserModel from "../models/UserModel.js";
 import cloudinary from "../config/cloudinary.js";
-import { getIO } from "../socket/socket.js";
+import { getIO, userSocketMap } from "../socket/socket.js";
 
 export const getUsers = async (req, res) => {
     try {
-        const users = await UserModel.find({ _id: { $ne: req.user._id } })
-            .select("-password");
+
+        const currentUser = await UserModel.findById(req.user._id);
+
+        const users = await UserModel.find({
+            _id: { $ne: req.user._id }
+        }).select("-password");
+
+        const updatedUsers = users.map(user => {
+
+            const iBlocked = currentUser.blockedUsers?.includes(user._id);
+
+            const blockedMe = user.blockedUsers?.includes(req.user._id);
+
+            return {
+                ...user.toObject(),
+                iBlocked,
+                blockedMe
+            };
+        });
 
         res.status(200).json({
             success: true,
-            users
+            users: updatedUsers
         });
 
     } catch (error) {
@@ -22,11 +39,7 @@ export const getUsers = async (req, res) => {
 
 export const searchUsers = async (req, res) => {
     try {
-        console.log("query:", req.query.q);
-        console.log("user:", req.user);
-
         const keyword = req.query.q;
-
         if (!keyword) {
             return res.json([]);
         }
@@ -50,12 +63,9 @@ export const searchUsers = async (req, res) => {
             .select("-password")
             .limit(10);
 
-        console.log("results:", users.length);
-
         res.json(users);
 
     } catch (error) {
-        console.log("SEARCH ERROR:", error);
         res.status(500).json({
             message: error.message
         });
@@ -70,7 +80,6 @@ export const updateProfile = async (req, res) => {
 
         let profilePic = req.file?.path || null;
 
-        // 👇 FIX IS HERE: Changed User to UserModel
         const user = await UserModel.findById(userId);
 
         if (!user) return res.status(404).json({ message: "User not found" });
@@ -78,9 +87,8 @@ export const updateProfile = async (req, res) => {
         user.fullName = fullName;
         user.bio = bio;
 
-        // 👇 Cloudinary update or remove logic
         if (profilePic) {
-            user.profilePic = profilePic; // cloudinary URL
+            user.profilePic = profilePic;
         }
 
         await user.save();
@@ -100,5 +108,63 @@ export const updateProfile = async (req, res) => {
     } catch (err) {
         console.log(err);
         res.status(500).json({ message: "Profile update failed" });
+    }
+};
+
+export const blockUser = async (req, res) => {
+    try {
+        const { userId } = req.body;
+        const currentUser = await UserModel.findById(req.user._id);
+
+        if (!currentUser.blockedUsers) currentUser.blockedUsers = [];
+
+        if (!currentUser.blockedUsers.includes(userId)) {
+            currentUser.blockedUsers.push(userId);
+            await currentUser.save();
+        }
+
+        // 🚀 INSTANT SYNC: Tell the other user they got blocked
+        const io = getIO();
+        const receiverSocketId = userSocketMap.get(userId);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("user:blockedMe", { blockerId: req.user._id });
+        }
+
+        res.status(200).json({ message: "User blocked successfully" });
+    } catch (error) {
+        console.error("BLOCK ERROR:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+export const unblockUser = async (req, res) => {
+    try {
+        const { userId } = req.body;
+        const currentUser = await UserModel.findById(req.user._id);
+
+        if (!currentUser.blockedUsers) currentUser.blockedUsers = [];
+
+        currentUser.blockedUsers = currentUser.blockedUsers.filter(id => id.toString() !== userId);
+        await currentUser.save();
+
+        const io = getIO();
+        const receiverSocketId = userSocketMap.get(userId);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("user:unblockedMe", { blockerId: req.user._id });
+        }
+
+        res.status(200).json({ message: "User unblocked successfully" });
+    } catch (error) {
+        console.error("UNBLOCK ERROR:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+export const blocked = async (req, res) => {
+    try {
+        const currentUser = await UserModel.findById(req.user._id).populate("blockedUsers", "fullName profilePic");
+        res.status(200).json(currentUser.blockedUsers);
+    } catch (error) {
+        res.status(500).json({ error: "Internal server error" });
     }
 };

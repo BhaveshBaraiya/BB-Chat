@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { updateUser } from "../../redux/features/authSlice"; 
 import axiosInstance from "../../services/axios";
-import { FiArrowLeft } from "react-icons/fi";
+import { FiArrowLeft, FiCamera } from "react-icons/fi";
 import toast from "react-hot-toast";
 
 export default function ProfileSettings({ goBack }) {
@@ -42,9 +42,7 @@ export default function ProfileSettings({ goBack }) {
         headers: { "Content-Type": "multipart/form-data" }
       });
 
-      // Update Redux state to trigger global UI updates
       dispatch(updateUser(data)); 
-
       setProfilePic(null);
       toast.success("Profile updated successfully 🚀");
       goBack?.();
@@ -57,55 +55,71 @@ export default function ProfileSettings({ goBack }) {
   };
 
   return (
-    <div className="p-5">
-      <button onClick={goBack} className="mb-5 flex items-center gap-2">
-        <FiArrowLeft /> Back
-      </button>
-      <h2 className="text-xl font-semibold mb-5">Edit Profile</h2>
+    <div className="w-full h-full flex flex-col bg-white">
 
-      <div className="flex justify-center mb-5">
-        <label className="cursor-pointer">
-          <img
-            src={preview || `https://ui-avatars.com/api/?name=${user?.fullName}`}
-            className="w-28 h-28 rounded-full object-cover"
-            alt="profile"
-          />
-          <input type="file" hidden accept="image/*" onChange={handleImageChange} />
-        </label>
+      <div className="flex items-center gap-4 p-4 sm:p-6 border-b border-slate-100 shrink-0">
+        <button onClick={goBack} className="p-2 -ml-2 rounded-full hover:bg-slate-100 transition text-slate-600">
+          <FiArrowLeft size={20} />
+        </button>
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Edit Profile</h2>
       </div>
 
-      <input 
-        value={fullName} 
-        onChange={(e) => setFullName(e.target.value)} 
-        placeholder="Full Name" 
-        className="w-full border p-3 rounded-xl mb-3" 
-      />
-      <textarea 
-        value={bio} 
-        onChange={(e) => setBio(e.target.value)} 
-        placeholder="About" 
-        className="w-full border p-3 rounded-xl h-[120px]" 
-      />
+      {/* SCROLLABLE CONTENT AREA */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24">
+        <div className="max-w-xl mx-auto w-full">
+          <div className="flex justify-center mb-8">
+            <label className="cursor-pointer relative group">
+              <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-white shadow-lg">
+                <img
+                  src={preview || `https://ui-avatars.com/api/?name=${user?.fullName}`}
+                  className="w-full h-full object-cover bg-slate-100"
+                  alt="profile"
+                />
+              </div>
+              <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <FiCamera className="text-white text-2xl" />
+              </div>
+              <input type="file" hidden accept="image/*" onChange={handleImageChange} />
+            </label>
+          </div>
 
-      {/* MOBILE EXTRA SETTINGS */}
-      <div className="lg:hidden mt-8">
-        <h3 className="font-semibold text-slate-700 mb-4">More Settings</h3>
-        <div className="space-y-3">
-          {["Notifications", "Shared Media", "Groups", "Privacy"].map((item) => (
-            <div key={item} className="bg-white p-4 rounded-xl shadow-sm">
-              {item}
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider ml-1">Full Name</label>
+              <input 
+                value={fullName} 
+                onChange={(e) => setFullName(e.target.value)} 
+                placeholder="Enter your name" 
+                className="w-full bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-xl mt-1.5 focus:ring-2 focus:ring-indigo-500 outline-none transition text-slate-800 font-medium" 
+              />
             </div>
-          ))}
+            
+            <div>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider ml-1">About</label>
+              <textarea 
+                value={bio} 
+                onChange={(e) => setBio(e.target.value)} 
+                placeholder="Tell us about yourself" 
+                className="w-full bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-xl mt-1.5 focus:ring-2 focus:ring-indigo-500 outline-none transition text-slate-800 h-[120px] resize-none" 
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      <button 
-        onClick={save} 
-        disabled={loading} 
-        className="mt-4 w-full bg-green-500 text-white py-3 rounded-xl"
-      >
-        {loading ? "Updating..." : "Save Changes"}
-      </button>
+      {/* FIXED FOOTER WITH BUTTON */}
+      <div className="p-4 sm:p-6 bg-white border-t border-slate-100 shrink-0">
+        <div className="max-w-xl mx-auto w-full">
+          <button 
+            onClick={save} 
+            disabled={loading} 
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-4 rounded-xl shadow-lg shadow-indigo-200 transition-all active:scale-[0.98] disabled:opacity-70"
+          >
+            {loading ? "Updating..." : "Save Changes"}
+          </button>
+        </div>
+      </div>
+
     </div>
   );
 }

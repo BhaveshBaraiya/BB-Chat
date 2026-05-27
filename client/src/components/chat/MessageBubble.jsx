@@ -126,64 +126,60 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
         (messageObj.documents && messageObj.documents.length > 0) || 
         (messageObj.audio && messageObj.audio !== "");
 
-    // Check if mobile on mount and resize
     useEffect(() => {
         const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768); // md breakpoint
+            setIsMobile(window.innerWidth < 768);
         };
         
         checkMobile();
         window.addEventListener('resize', checkMobile);
         
-        return () => {
-            window.removeEventListener('resize', checkMobile);
-        };
+        return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    // Keeps the action bar visible if the user is interacting with a menu
     const actionVisible = showMenu || showReaction || showEmojiPicker;
 
     useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (menuRef.current && !menuRef.current.contains(e.target)) {
-                setShowMenu(false);
-            }
+        const handleClickOutside = (e) => {            
+            if (isMobile) return; 
+
+            if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false);
             if (reactionRef.current && !reactionRef.current.contains(e.target)) {
                 setShowReaction(false);
                 setShowEmojiPicker(false);
             }
-            if (infoRef.current && !infoRef.current.contains(e.target)) {
-                setShowInfo(false);
-            }
+            if (infoRef.current && !infoRef.current.contains(e.target)) setShowInfo(false);
         };
 
         document.addEventListener("mousedown", handleClickOutside);
-        document.addEventListener("touchstart", handleClickOutside);
         
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
-            document.removeEventListener("touchstart", handleClickOutside);
         };
-    }, []);
+    }, [isMobile]);
 
-    // Long press handler for mobile
     const handleTouchStart = () => {
-        if (isMobile) {
+        if (isMobile && !actionVisible) {
+            // Clear any existing timer just in case
+            if (longPressTimer.current) clearTimeout(longPressTimer.current);
+            
             longPressTimer.current = setTimeout(() => {
                 setShowMenu(true);
-            }, 500); // 500ms long press
+            }, 500); 
         }
     };
 
     const handleTouchEnd = () => {
         if (longPressTimer.current) {
             clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
         }
     };
 
     const handleTouchMove = () => {
         if (longPressTimer.current) {
             clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
         }
     };
 
@@ -194,7 +190,8 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
         return <BsCheck size={16} className="text-gray-300" />;
     };
 
-    const handleCopy = async () => {
+    const handleCopy = async (e) => {
+        if(e) e.stopPropagation();
         try {
             if (message) {
                 await navigator.clipboard.writeText(message);
@@ -204,61 +201,67 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                 const blob = await response.blob();
                 
                 await navigator.clipboard.write([
-                    new ClipboardItem({
-                        [blob.type]: blob
-                    })
+                    new ClipboardItem({ [blob.type]: blob })
                 ]);
             }
         } catch (error) {
             console.error("Copy failed.", error);
         } finally {
-            setShowMenu(false);
+            closeAllMobileModals();
         }
     };
 
-    // Helper function to close all mobile modals
     const closeAllMobileModals = () => {
         setShowMenu(false);
         setShowReaction(false);
         setShowEmojiPicker(false);
     };
 
-    const handleReplyClick = () => {
+    // ADDED: Pass the event (e) to prevent bubbling
+    const handleReplyClick = (e) => {
+        e.stopPropagation();
         dispatch(setReplyMessage(messageObj));
         closeAllMobileModals();
     };
 
-    const handleForwardClick = () => {
+    const handleForwardClick = (e) => {
+        e.stopPropagation();
         dispatch(setForwardMessageData(messageObj));
         closeAllMobileModals();
     };
 
-    const handleReactionClick = (emoji) => {
+    const handleReactionClick = (e, emoji) => {
+        e.stopPropagation();
         reactToMessage(messageObj._id, emoji);
         closeAllMobileModals();
     };
 
-    const handlePinClick = () => {
+    const handlePinClick = (e) => {
+        e.stopPropagation();
         pinMessage(messageObj._id);
         closeAllMobileModals();
     };
 
-    const handleDeleteForMeClick = () => {
+    const handleDeleteForMeClick = (e) => {
+        e.stopPropagation();
         deleteForMe(messageObj._id);
         closeAllMobileModals();
     };
 
-    const handleDeleteForEveryoneClick = () => {
+    const handleDeleteForEveryoneClick = (e) => {
+        e.stopPropagation();
         deleteForEveryone(messageObj._id);
         closeAllMobileModals();
     };
 
-    const handleEditClick = () => {
+    const handleEditClick = (e) => {
+        e.stopPropagation();
         setEditing(true);
         closeAllMobileModals();
     };
 
-    const handleInfoClick = () => {
+    const handleInfoClick = (e) => {
+        e.stopPropagation();
         setShowInfo(true);
         closeAllMobileModals();
     };
@@ -267,11 +270,13 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
         <div 
             className={`flex w-full mb-3 group ${own ? "justify-end" : "justify-start"}`}
             ref={messageRef}
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-            onTouchMove={handleTouchMove}
         >
-            <div className={`flex items-center gap-2 max-w-[90%] sm:max-w-[85%] md:max-w-[90%] ${own ? "flex-row-reverse" : "flex-row"}`}>
+            <div 
+                className={`flex items-center gap-2 max-w-[90%] sm:max-w-[85%] md:max-w-[90%] ${own ? "flex-row-reverse" : "flex-row"}`}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+                onTouchMove={handleTouchMove}
+            >
                 <div className={`relative flex flex-col ${own ? "items-end" : "items-start"} max-w-full`}>
                     <div 
                         className={`relative px-3 sm:px-4 py-2 sm:py-3 rounded-2xl break-words w-full ${
@@ -309,7 +314,8 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                                     autoFocus
                                 />
                                 <button
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                        e.stopPropagation();
                                         editMessage(messageObj._id, editedText);
                                         setEditing(false);
                                     }}
@@ -327,8 +333,8 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                                                 key={index}
                                                 src={getMediaUrl(img)} 
                                                 alt="attachment"
-                                                onClick={() => setShowImage(img)}
-                                                className="max-w-[200px] sm:max-w-[260px] rounded-xl cursor-pointer hover:opacity-95 transition object-cover"
+                                                onClick={(e) => { e.stopPropagation(); setShowImage(img); }}
+                                                className="max-w-[180px] rounded-xl cursor-pointer hover:opacity-95 transition object-cover"
                                             />
                                         ))}
                                     </div>
@@ -343,6 +349,7 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                                                 download={doc.fileName}
                                                 target="_blank"
                                                 rel="noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
                                                 className={`flex items-center gap-2 p-2 sm:p-3 rounded-lg text-sm transition ${
                                                     own ? "bg-white/20 hover:bg-white/30 text-white" : "bg-slate-100 hover:bg-slate-200 text-black"
                                                 }`}
@@ -358,7 +365,9 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                                 )}
 
                                 {messageObj.audio && (
-                                    <WhatsAppAudioPlayer src={getMediaUrl(messageObj.audio)} own={own} />
+                                    <div onClick={(e) => e.stopPropagation()}>
+                                        <WhatsAppAudioPlayer src={getMediaUrl(messageObj.audio)} own={own} />
+                                    </div>
                                 )}
 
                                 {message && (
@@ -389,13 +398,12 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                     )}
                 </div>
 
-                {/* Desktop Action Buttons - Visible on hover */}
+                {/* Desktop Action Buttons */}
                 <div className={`hidden md:flex items-center gap-1.5 transition-all duration-300 transform z-10 ${
                     actionVisible 
                         ? "opacity-100 translate-x-0" 
                         : `opacity-0 group-hover:opacity-100 group-hover:translate-x-0 ${own ? "translate-x-4" : "-translate-x-4"}`
                 }`}>
-                    
                     <button
                         onClick={handleReplyClick}
                         className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 shadow-sm transition"
@@ -407,7 +415,7 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                     {!own && (
                         <div className="relative" ref={reactionRef}>
                             <button
-                                onClick={() => setShowReaction(!showReaction)}
+                                onClick={(e) => { e.stopPropagation(); setShowReaction(!showReaction); }}
                                 className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 shadow-sm transition"
                                 title="React"
                             >
@@ -415,18 +423,19 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                             </button>
 
                             {showReaction && (
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white shadow-xl border border-slate-100 rounded-full px-3 py-2 flex items-center gap-2 z-50 w-max">
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white shadow-xl border border-slate-100 rounded-full px-3 py-2 flex items-center gap-2 z-50 w-max" onClick={(e) => e.stopPropagation()}>
                                     {emojis.map(emoji => (
                                         <button
                                             key={emoji}
-                                            onClick={() => handleReactionClick(emoji)}
+                                            onClick={(e) => handleReactionClick(e, emoji)}
                                             className="text-xl hover:scale-125 transition"
                                         >
                                             {emoji}
                                         </button>
                                     ))}
                                     <button
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                            e.stopPropagation();
                                             setShowEmojiPicker(!showEmojiPicker);
                                             setShowReaction(false);
                                         }}
@@ -438,12 +447,9 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                             )}
 
                             {showEmojiPicker && (
-                                <div className="absolute bottom-full left-0 mb-2 z-50 shadow-2xl rounded-lg">
+                                <div className="absolute bottom-full left-0 mb-2 z-50 shadow-2xl rounded-lg" onClick={(e) => e.stopPropagation()}>
                                     <EmojiPicker
-                                        onEmojiClick={(emojiData) => {
-                                            reactToMessage(messageObj._id, emojiData.emoji);
-                                            setShowEmojiPicker(false);
-                                        }}
+                                        onEmojiClick={(emojiData) => handleReactionClick({stopPropagation: () => {}}, emojiData.emoji)}
                                     />
                                 </div>
                             )}
@@ -452,7 +458,7 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
 
                     <div className="relative" ref={menuRef}>
                         <button
-                            onClick={() => setShowMenu(!showMenu)}
+                            onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
                             className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 shadow-sm transition"
                             title="More options"
                         >
@@ -460,7 +466,7 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                         </button>
 
                         {showMenu && (
-                            <div className={`absolute top-full mt-2 z-50 ${own ? "right-0" : "left-0"} bg-white rounded-xl shadow-xl min-w-[220px] overflow-hidden border border-slate-100`}>
+                            <div className={`absolute top-full mt-2 z-50 ${own ? "right-0" : "left-0"} bg-white rounded-xl shadow-xl min-w-[220px] overflow-hidden border border-slate-100`} onClick={(e) => e.stopPropagation()}>
                                 {own && !messageObj.isDeletedForEveryone && !hasAttachments && (
                                     <button onClick={handleEditClick} className="w-full px-4 py-3 text-left text-sm hover:bg-slate-100 flex items-center gap-2 text-slate-700">
                                         <FiEdit2 size={14} /> Edit message
@@ -497,52 +503,60 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
 
                 {/* Mobile Action Menu Modal */}
                 {isMobile && showMenu && (
-                    <div className="fixed inset-0 bg-black/40 z-[100]" onClick={() => setShowMenu(false)}>
+                    <div 
+                        className="fixed inset-0 bg-black/40 z-[100]" 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMenu(false); // Close if tapping the black background
+                        }}
+                    >
                         <div 
                             className="absolute top-16 right-4 w-[220px] bg-white rounded-xl shadow-2xl overflow-hidden border border-slate-100"
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()} // STOP CLICKS FROM CLOSING THE MODAL PREMATURELY
                         >
-                            <button 
-                                onClick={handleReplyClick}
-                                className="w-full px-4 py-3 text-left text-sm hover:bg-slate-100 flex items-center gap-2 text-slate-700"
-                            >
+                            <button onClick={handleReplyClick} className="w-full px-4 py-3 text-left text-sm hover:bg-slate-100 flex items-center gap-2 text-slate-700">
                                 <FiCornerUpLeft size={14} /> Reply
                             </button>
+                            
                             {!own && (
                                 <button 
-                                    onClick={() => {
-                                        setShowReaction(true);
-                                        setShowMenu(false);
-                                    }}
+                                    onClick={() => { setShowReaction(true); setShowMenu(false); }}
                                     className="w-full px-4 py-3 text-left text-sm hover:bg-slate-100 flex items-center gap-2 text-slate-700"
                                 >
                                     <FiSmile size={14} /> React
                                 </button>
                             )}
+                            
                             {own && !messageObj.isDeletedForEveryone && !hasAttachments && (
                                 <button onClick={handleEditClick} className="w-full px-4 py-3 text-left text-sm hover:bg-slate-100 flex items-center gap-2 text-slate-700">
                                     <FiEdit2 size={14} /> Edit message
                                 </button>
                             )}
-                            {(!messageObj.isDeletedForEveryone) && (
+                            
+                            {!messageObj.isDeletedForEveryone && (
                                 <button onClick={handleCopy} className="w-full px-4 py-3 text-left text-sm hover:bg-slate-100 flex items-center gap-2 text-slate-700">
                                     <FiCopy size={14} /> Copy
                                 </button>
                             )}
-                            {(!messageObj.isDeletedForEveryone) && (
+                            
+                            {!messageObj.isDeletedForEveryone && (
                                 <button onClick={handleForwardClick} className="w-full px-4 py-3 text-left text-sm hover:bg-slate-100 flex items-center gap-2 text-slate-700">
                                     <FiCornerUpRight size={14} /> Forward
                                 </button>
                             )}
+                            
                             <button onClick={handlePinClick} className="w-full px-4 py-3 text-left text-sm hover:bg-slate-100 flex items-center gap-2 text-slate-700">
                                 <LuPin size={14} /> {messageObj.pinned ? "Unpin" : "Pin"}
                             </button>
+                            
                             <button onClick={handleInfoClick} className="w-full px-4 py-3 text-left text-sm hover:bg-slate-100 flex items-center gap-2 text-slate-700">
                                 <FiInfo size={14} /> Message info
                             </button>
+                            
                             <button onClick={handleDeleteForMeClick} className="w-full px-4 py-3 text-left text-sm hover:bg-slate-100 text-slate-700">
                                 Delete for me
                             </button>
+                            
                             {own && (
                                 <button onClick={handleDeleteForEveryoneClick} className="w-full px-4 py-3 text-left text-sm text-red-500 hover:bg-red-50">
                                     Delete for everyone
@@ -554,23 +568,29 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
 
                 {/* Mobile Reaction Modal */}
                 {isMobile && showReaction && (
-                    <div className="fixed inset-0 bg-black/40 z-[100]" onClick={() => setShowReaction(false)}>
+                    <div 
+                        className="fixed inset-0 bg-black/40 z-[100]" 
+                        onClick={(e) => { e.stopPropagation(); setShowReaction(false); }}
+                        onTouchStart={(e) => e.stopPropagation()} // BLOCK TOUCH BUBBLING
+                    >
                         <div 
                             className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl p-4"
                             onClick={(e) => e.stopPropagation()}
+                            onTouchStart={(e) => e.stopPropagation()} // BLOCK TOUCH BUBBLING
                         >
                             <div className="flex gap-3 mb-4 justify-center">
                                 {emojis.map(emoji => (
                                     <button
                                         key={emoji}
-                                        onClick={() => handleReactionClick(emoji)}
+                                        onClick={(e) => handleReactionClick(e, emoji)}
                                         className="text-2xl hover:scale-125 transition"
                                     >
                                         {emoji}
                                     </button>
                                 ))}
                                 <button
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                        e.stopPropagation();
                                         setShowEmojiPicker(true);
                                         setShowReaction(false);
                                     }}
@@ -580,7 +600,7 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                                 </button>
                             </div>
                             <button 
-                                onClick={() => setShowReaction(false)}
+                                onClick={(e) => { e.stopPropagation(); setShowReaction(false); }}
                                 className="w-full py-2 bg-slate-100 rounded-lg text-sm text-slate-700 hover:bg-slate-200"
                             >
                                 Cancel
@@ -591,19 +611,21 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
 
                 {/* Mobile Emoji Picker Modal */}
                 {isMobile && showEmojiPicker && (
-                    <div className="fixed inset-0 bg-black/40 z-[100]" onClick={() => setShowEmojiPicker(false)}>
+                    <div 
+                        className="fixed inset-0 bg-black/40 z-[100]" 
+                        onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(false); }}
+                        onTouchStart={(e) => e.stopPropagation()} // BLOCK TOUCH BUBBLING
+                    >
                         <div 
                             className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
                             onClick={(e) => e.stopPropagation()}
+                            onTouchStart={(e) => e.stopPropagation()} // BLOCK TOUCH BUBBLING
                         >
                             <EmojiPicker
-                                onEmojiClick={(emojiData) => {
-                                    reactToMessage(messageObj._id, emojiData.emoji);
-                                    setShowEmojiPicker(false);
-                                }}
+                                onEmojiClick={(emojiData) => handleReactionClick({stopPropagation: () => {}}, emojiData.emoji)}
                             />
                             <button 
-                                onClick={() => setShowEmojiPicker(false)}
+                                onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(false); }}
                                 className="w-full py-2 bg-white rounded-b-xl text-sm text-slate-700 hover:bg-slate-100 border-t border-slate-100"
                             >
                                 Cancel
@@ -615,15 +637,20 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
 
             {/* Image Preview Modal */}
             {showImage && (
-                <div className="fixed inset-0 bg-black/90 z-[999] flex items-center justify-center p-4" onClick={() => setShowImage(null)}>
-                    <button onClick={() => setShowImage(null)} className="absolute top-4 right-4 text-white text-2xl hover:text-red-400 transition z-[1000]">
+                <div 
+                    className="fixed inset-0 bg-black/90 z-[999] flex items-center justify-center p-4" 
+                    onClick={(e) => { e.stopPropagation(); setShowImage(null); }}
+                    onTouchStart={(e) => e.stopPropagation()}
+                >
+                    <button onClick={(e) => { e.stopPropagation(); setShowImage(null); }} className="absolute top-4 right-4 text-white text-2xl hover:text-red-400 transition z-[1000]">
                         <FiX />
                     </button>
-                    <a href={getMediaUrl(showImage)} download target="_blank" rel="noreferrer" className="absolute top-4 left-4 text-white text-2xl hover:text-indigo-400 transition z-[1000]" title="Download Image">
+                    <a href={getMediaUrl(showImage)} download target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="absolute top-4 left-4 text-white text-2xl hover:text-indigo-400 transition z-[1000]" title="Download Image">
                         <FiDownload />
                     </a>
                     <button
-                        onClick={async () => {
+                        onClick={async (e) => {
+                            e.stopPropagation();
                             try {
                                 const response = await fetch(getMediaUrl(showImage)); 
                                 const blob = await response.blob();
@@ -648,7 +675,11 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
 
             {/* Message Info Modal */}
             {showInfo && (
-                <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4" onClick={() => setShowInfo(false)}>
+                <div 
+                    className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4" 
+                    onClick={(e) => { e.stopPropagation(); setShowInfo(false); }}
+                    onTouchStart={(e) => e.stopPropagation()}
+                >
                     <div 
                         ref={infoRef} 
                         className="bg-white rounded-2xl p-5 w-[90%] sm:w-[320px] max-w-[320px] shadow-2xl"
@@ -662,7 +693,7 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                             <p><b>Edited:</b> {messageObj.edited ? "Yes" : "No"}</p>
                         </div>
                         <button 
-                            onClick={() => setShowInfo(false)} 
+                            onClick={(e) => { e.stopPropagation(); setShowInfo(false); }} 
                             className="mt-5 w-full py-2 rounded-xl bg-indigo-500 text-white hover:bg-indigo-600"
                         >
                             Close

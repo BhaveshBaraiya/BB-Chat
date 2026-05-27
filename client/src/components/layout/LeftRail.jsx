@@ -7,7 +7,6 @@ import {
 import { useSelector } from "react-redux";
 
 export default function LeftRail({ activeTab, setActiveTab }) {
-  // Pulling authUser from Redux to ensure it is reactive across the app
   const authUser = useSelector((state) => state.auth.user);
 
   const tabs = [
@@ -23,6 +22,7 @@ export default function LeftRail({ activeTab, setActiveTab }) {
       flex flex-row lg:flex-col 
       items-center justify-between 
       px-4 lg:px-0 py-2 lg:py-5
+      min-w-[80px]
     ">
       {/* Navigation Tabs Container */}
       <div className="flex flex-row lg:flex-col gap-2 lg:gap-4 w-full lg:w-auto justify-around lg:justify-start">
@@ -41,16 +41,7 @@ export default function LeftRail({ activeTab, setActiveTab }) {
             {tab.icon}
           </button>
         ))}
-      </div>
-
-      {/* User Profile Avatar */}
-      <div className="hidden lg:block">
-        <img
-          src={authUser?.profilePic || `https://ui-avatars.com/api/?name=${authUser?.fullName || "User"}`}
-          className="w-10 h-10 rounded-full object-cover border-2 border-gray-600 cursor-pointer"
-          alt="Profile"
-        />
-      </div>
+      </div>  
     </div>
   );
 }

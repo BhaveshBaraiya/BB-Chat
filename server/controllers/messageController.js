@@ -5,6 +5,8 @@ import {
     userSocketMap
 } from "../socket/socket.js";
 
+import UserModel from "../models/UserModel.js";
+
 export const getMessages = async (req, res) => {
     try {
 
@@ -95,6 +97,14 @@ export const sendMessage = async (req, res) => {
         const { id: receiverId } = req.params;
         const senderId = req.user._id;
 
+        const sender = await UserModel.findById(senderId);
+
+        const receiver = await UserModel.findById(receiverId);
+
+        const blocked =
+            sender.blockedUsers?.includes(receiver._id) ||
+            receiver.blockedUsers?.includes(sender._id);
+
         const receiverSocketId = userSocketMap.get(receiverId.toString());
 
         const newMessage = await MessageModel.create({
@@ -105,7 +115,7 @@ export const sendMessage = async (req, res) => {
             documents,
             audio: audioPath,
             replyTo: replyTo || null,
-            delivered: !!receiverSocketId,
+            delivered: blocked ? false : !!receiverSocketId,
             seen: false,
             isForwarded: isForwarded || false,
         });
@@ -114,7 +124,7 @@ export const sendMessage = async (req, res) => {
             .findById(newMessage._id)
             .populate("replyTo", "text senderId");
 
-        if (receiverSocketId) {
+        if (!blocked && receiverSocketId) {
             io.to(receiverSocketId).emit("newMessage", populatedMessage);
         }
 
@@ -124,7 +134,6 @@ export const sendMessage = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("SEND MESSAGE ERROR:", error);
         res.status(500).json({
             success: false,
             message: error.message
@@ -182,21 +191,12 @@ export const getUnreadCounts = async (req, res) => {
     }
 
     catch (error) {
-
-        console.log(
-            "Unread Error:",
-            error
-        );
-
+        console.log("Unread Error:",error);
         res.status(500).json({
-
             success: false,
             message: error.message
-
         });
-
     }
-
 };
 
 export const reactToMessage = async (req, res) => {
@@ -266,14 +266,11 @@ export const reactToMessage = async (req, res) => {
         });
 
     } catch (error) {
-
         console.log(error);
-
         res.status(500).json({
             success: false,
             message: error.message
         });
-
     }
 };
 
@@ -470,3 +467,21 @@ export const togglePinMessage = async (req, res) => {
         });
     }
 };
+
+export const clearChat = async (req, res) => {
+    try {
+        const myId = req.user._id;
+        const otherUserId = req.params.userId;
+        await MessageModel.deleteMany({
+            $or: [
+                { senderId: myId, receiverId: otherUserId },
+                { senderId: otherUserId, receiverId: myId }
+            ]
+        });
+
+        res.status(200).json({ message: "Chat cleared successfully" });
+    } catch (error) {
+        console.error("Error in clear chat controller: ", error.message);
+        res.status(500).json({ error: "Internal server error" });
+    }
+}

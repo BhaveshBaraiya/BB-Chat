@@ -2,7 +2,7 @@ import express from "express";
 
 import protect from "../middleware/authMiddleware.js";
 import upload from "../middleware/upload.js";
-import { getMessages, sendMessage, getUnreadCounts, reactToMessage, deleteForEveryone, deleteForMe, editMessage, togglePinMessage } from "../controllers/messageController.js";
+import { getMessages, sendMessage, getUnreadCounts, reactToMessage, deleteForEveryone, deleteForMe, editMessage, togglePinMessage, clearChat } from "../controllers/messageController.js";
 
 const router= express.Router();
 
@@ -17,5 +17,6 @@ router.put("/pin/:id", protect, togglePinMessage);
 router.put("/react", protect, reactToMessage);
 router.put("/delete/me/:id",protect,deleteForMe);
 router.put("/delete/all/:id", protect,deleteForEveryone);
+router.delete("/clear/:userId", protect,clearChat);
 
 export default router;

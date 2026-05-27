@@ -134,36 +134,32 @@ export default function AppLayout() {
     cleanupCall();
   };
 
-  return (
-    <div className="h-screen overflow-hidden bg-[#F0F2F5]">
+ return (
+    <div className="h-[100dvh] w-full overflow-hidden bg-[#F0F2F5] flex flex-col">
       <CallModal acceptCall={acceptCall} rejectCall={rejectCall} />
       <CallOverlay onEndCall={endCall} />
 
-      {/* MOBILE TOP RAIL */}
-      <div className="lg:hidden h-[65px] border-b bg-white">
+      <div className={`lg:hidden shrink-0 h-[65px] border-b bg-white ${selectedChatRedux ? "hidden" : "block"}`}>
         <LeftRail activeTab={activeTab} setActiveTab={setActiveTab} />
       </div>
 
-      <div className="flex h-[calc(100vh-65px)] lg:h-screen">
-        {/* DESKTOP LEFT RAIL */}
-        <div className="hidden lg:block">
+      <div className="flex-1 flex overflow-hidden">
+        
+        <div className="hidden lg:block shrink-0">
           <LeftRail activeTab={activeTab} setActiveTab={setActiveTab} />
         </div>
 
-        {/* SIDEBAR */}
-        <div className={`w-full md:w-[380px] bg-white ${selectedChatRedux ? "hidden md:hidden lg:block" : "block"}`}>
+        <div className={`w-full md:w-[350px] bg-white shrink-0 ${selectedChatRedux ? "hidden lg:block" : "block"}`}>
           <Sidebar activeTab={activeTab} />
         </div>
 
-        {/* CHAT WINDOW */}
-        <div className={`flex-1 ${!selectedChatRedux ? "hidden md:hidden lg:flex" : "flex"}`}>
+        <div className={`flex-1 min-w-0 ${!selectedChatRedux ? "hidden md:flex" : "flex"}`}>
           <ChatWindow setShowProfile={setShowProfile} />
         </div>
 
-        {/* PROFILE PANEL */}
-        <div className="hidden lg:block">
+        <div className="hidden lg:block shrink-0">
           <ProfilePanel />
-        </div>
+        </div>        
       </div>
     </div>
   );
