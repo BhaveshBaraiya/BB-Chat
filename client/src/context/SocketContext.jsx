@@ -13,8 +13,9 @@ export default function SocketProvider({ children }) {
     useEffect(() => {
         if (!user) return;
 
-        const socketInstance = io(import.meta.env.VITE_SERVER_URL, {
+        const socketInstance = io(import.meta.env.VITE_SERVER_URL || "http://localhost:5000", {
             query: { userId: user._id },
+            transports: ["polling"], // FIX: Remove "websocket" to prevent PeerJS crash
             withCredentials: true
         });
 

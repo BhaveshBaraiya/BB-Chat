@@ -1,88 +1,32 @@
-import { useContext } from "react";
 import { FiX } from "react-icons/fi";
-
-import { ChatContext } from "../../context/ChatContext";
-import { AuthContext } from "../../context/AuthContext";
+import { useDispatch, useSelector } from "react-redux";
+import { setReplyMessage } from "../../redux/features/chatSlice";
 
 export default function ReplyPreview() {
+    const dispatch = useDispatch();
+    
+    // Pull from Redux
+    const replyMessage = useSelector((state) => state.chat.replyMessage);
 
-    const {
-        replyMessage,
-        setReplyMessage
-    } = useContext(ChatContext);
-
-    const { user } =
-        useContext(AuthContext);
-
-    if (!replyMessage)
-        return null;
-
-    const isOwn =
-        replyMessage.senderId ===
-        user._id;
+    // DEFENSIVE CHECK: If no reply is selected, render nothing to prevent crashes
+    if (!replyMessage) return null;
 
     return (
-
-        <div
-            className="
-            bg-slate-100
-            rounded-xl
-            px-4
-            py-3
-            mb-3
-            flex
-            justify-between
-            items-start
-            border-l-4
-            border-indigo-500
-            "
-        >
-
-            <div className="overflow-hidden">
-
-                <p
-                    className="
-                    text-xs
-                    text-indigo-500
-                    font-semibold
-                    "
-                >
-                    Replying to
-                    {" "}
-                    {isOwn
-                        ? "You"
-                        : "Message"}
-                </p>
-
-                <p
-                    className="
-                    text-sm
-                    text-slate-700
-                    truncate
-                    "
-                >
-                    {replyMessage.text}
-                </p>
-
+        <div className="flex items-center justify-between bg-slate-100 p-3 rounded-xl border-l-4 border-indigo-500 mb-3 mx-4">
+            <div className="flex flex-col overflow-hidden pr-4">
+                <span className="text-xs font-semibold text-indigo-500 mb-1">
+                    Replying to {replyMessage.senderId?.fullName || "User"}
+                </span>
+                <span className="text-sm truncate text-slate-600">
+                    {replyMessage.text || (replyMessage.images?.length > 0 ? "Photo" : "Attachment")}
+                </span>
             </div>
-
-
-            <button
-                onClick={() =>
-                    setReplyMessage(null)
-                }
-                className="
-                text-slate-500
-                hover:text-red-500
-                "
+            <button 
+                onClick={() => dispatch(setReplyMessage(null))} 
+                className="text-slate-500 hover:text-slate-800 bg-slate-200 hover:bg-slate-300 rounded-full p-1 transition"
             >
-
-                <FiX size={18}/>
-
+                <FiX size={16} />
             </button>
-
         </div>
-
     );
-
 }

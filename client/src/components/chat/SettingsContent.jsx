@@ -5,37 +5,37 @@ import LogoutButton from "./LogoutButton";
 
 export default function SettingsContent() {
 
-const [active,setActive]=useState("");
+    const [active, setActive] = useState("");
 
-if(active==="profile"){
-return(
-<ProfileSettings
-goBack={()=>setActive("")}
-/>
-)
-}
+    if (active === "profile") {
+        return (
+            <ProfileSettings
+                goBack={() => setActive("")}
+            />
+        )
+    }
 
-return (
+    return (
 
-<div className="p-5">
+        <div className="p-5">
 
-<h1 className="
+            <h1 className="
 text-2xl
 font-bold
 mb-6
 ">
 
-Settings
+                Settings
 
-</h1>
+            </h1>
 
-<div className="space-y-3">
+            <div className="space-y-3">
 
-<button
-onClick={()=>
-setActive("profile")
-}
-className="
+                <button
+                    onClick={() =>
+                        setActive("profile")
+                    }
+                    className="
 w-full
 p-4
 bg-slate-100
@@ -43,15 +43,15 @@ rounded-xl
 text-left
 hover:bg-slate-200
 "
->
+                >
 
-Profile
+                    Profile
 
-</button>
+                </button>
 
 
-<button
-className="
+                <button
+                    className="
 w-full
 p-4
 bg-slate-100
@@ -59,15 +59,15 @@ rounded-xl
 text-left
 hover:bg-slate-200
 "
->
+                >
 
-Privacy
+                    Privacy
 
-</button>
+                </button>
 
 
-<button
-className="
+                <button
+                    className="
 w-full
 p-4
 bg-slate-100
@@ -75,23 +75,23 @@ rounded-xl
 text-left
 hover:bg-slate-200
 "
->
+                >
 
-Theme
+                    Theme
 
-</button>
+                </button>
 
 
-<div className="pt-5">
+                <div className="pt-5">
 
-<LogoutButton/>
+                    <LogoutButton />
 
-</div>
+                </div>
 
-</div>
+            </div>
 
-</div>
+        </div>
 
-)
+    )
 
 }

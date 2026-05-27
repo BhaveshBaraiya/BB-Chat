@@ -24,7 +24,9 @@ const app = express();
 /* ========================
 MIDDLEWARE
 ======================== */
-const allowedOrigins = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',') : [];
+const allowedOrigins = process.env.CLIENT_URL 
+    ? process.env.CLIENT_URL.split(',') 
+    : ["http://localhost:5173"];
 
 app.use(
     cors({

@@ -26,33 +26,33 @@ export default function UserSearchModal({
                 </h2>
 
                 <input
-    value={query}
-    onChange={(e)=>{
+                    value={query}
+                    onChange={(e) => {
 
-        console.log("INPUT TYPED");
+                        console.log("INPUT TYPED");
 
-        const value=e.target.value;
+                        const value = e.target.value;
 
-        setQuery(value);
+                        setQuery(value);
 
-        searchUsers(value);
+                        searchUsers(value);
 
-    }}
+                    }}
 
-    onClick={()=>
-    console.log("INPUT CLICKED")
-    }
+                    onClick={() =>
+                        console.log("INPUT CLICKED")
+                    }
 
-    placeholder="Search by name or email"
+                    placeholder="Search by name or email"
 
-    className="
+                    className="
     w-full
     border
     p-3
     rounded-xl
     outline-none
     "
-/>
+                />
 
                 <div className="mt-4 max-h-[350px] overflow-y-auto">
 

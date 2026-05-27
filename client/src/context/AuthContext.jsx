@@ -20,8 +20,7 @@ export default function AuthProvider({ children }) {
             const { data } = await axiosInstance.get("/auth/me");
             setUser(data.user);
         } catch (error) {
-            console.log(error);
-            setUser(null);
+            setUser(null); 
         } finally {
             setLoading(false);
         }

@@ -1,52 +1,21 @@
-import { useContext } from "react";
+import { useDispatch } from "react-redux";
 import axiosInstance from "../services/axios";
-import { ChatContext } from "../context/ChatContext";
+import { updateMessageReaction } from "../redux/features/chatSlice";
 
 export default function useReaction() {
+    const dispatch = useDispatch();
 
-    const { setMessages } =
-        useContext(ChatContext);
-
-    const reactToMessage =
-    async(messageId,emoji)=>{
-
-        try{
-
-            const {data}=
-            await axiosInstance.put(
+    const reactToMessage = async (messageId, emoji) => {
+        try {
+            const { data } = await axiosInstance.put(
                 "/messages/react",
-                {
-                    messageId,
-                    emoji
-                }
+                { messageId, emoji }
             );
-
-            setMessages(prev=>
-
-                prev.map(msg=>
-
-                    msg._id===messageId
-                    ? data.message
-                    : msg
-
-                )
-
-            );
-
+            dispatch(updateMessageReaction(data.message));
+        } catch (error) {
+            console.log(error);
         }
-
-        catch(error){
-
-            console.log(
-                error
-            );
-
-        }
-
     };
 
-    return{
-        reactToMessage
-    };
-
+    return { reactToMessage };
 }

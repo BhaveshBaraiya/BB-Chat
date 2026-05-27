@@ -1,37 +1,25 @@
+import { useDispatch } from "react-redux";
 import axiosInstance from "../services/axios";
-import { useContext } from "react";
-import { AuthContext } from "../context/AuthContext";
-import { ChatContext } from "../context/ChatContext";
+import { updateUser } from "../redux/features/authSlice";
+import { updateChatUser } from "../redux/features/chatSlice";
 
 export default function useUpdateProfile() {
-
-    const { setUser } = useContext(AuthContext);
-    const { updateChatUser } = useContext(ChatContext);
+    const dispatch = useDispatch();
 
     const updateProfile = async (formData) => {
-
         const { data } = await axiosInstance.put(
             "/users/profile",
             formData,
-            {
-                headers: {
-                    "Content-Type": "multipart/form-data"
-                }
-            }
+            { headers: { "Content-Type": "multipart/form-data" } }
         );
 
         const updatedUser = {
             ...data,
-            profilePic: data.profilePic
-                ? `${data.profilePic}?t=${Date.now()}`
-                : data.profilePic
+            profilePic: data.profilePic ? `${data.profilePic}?t=${Date.now()}` : data.profilePic
         };
 
-        setUser(updatedUser);
-
-        // 🔥 THIS FIXES RECEIVER SIDE LIVE UPDATE
-        updateChatUser(updatedUser);
-
+        dispatch(updateUser(updatedUser));
+        dispatch(updateChatUser(updatedUser));
         return updatedUser;
     };
 

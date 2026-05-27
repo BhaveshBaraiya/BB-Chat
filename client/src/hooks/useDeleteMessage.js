@@ -1,91 +1,27 @@
-import { useContext } from "react";
+import { useDispatch } from "react-redux";
 import axiosInstance from "../services/axios";
-import { ChatContext } from "../context/ChatContext";
+import { removeMessage, markMessageDeletedForAll } from "../redux/features/chatSlice";
 
 export default function useDeleteMessage() {
-
-    const {
-        setMessages
-    } = useContext(ChatContext);
-
+    const dispatch = useDispatch();
 
     const deleteForMe = async (messageId) => {
-
         try {
-
-            await axiosInstance.put(
-                `/messages/delete/me/${messageId}`
-            );
-
-
-            setMessages(prev =>
-
-                prev.filter(
-                    msg => msg._id !== messageId
-                )
-
-            );
-
-        }
-
-        catch (error) {
-
+            await axiosInstance.put(`/messages/delete/me/${messageId}`);
+            dispatch(removeMessage(messageId));
+        } catch (error) {
             console.log(error);
-
         }
-
     };
-
-
 
     const deleteForEveryone = async (messageId) => {
-
         try {
-
-            await axiosInstance.put(
-                `/messages/delete/all/${messageId}`
-            );
-
-
-            setMessages(prev =>
-
-                prev.map(msg =>
-
-                    msg._id === messageId
-
-                        ? {
-
-                            ...msg,
-
-                            text: "",
-
-                            isDeletedForEveryone: true
-
-                        }
-
-                        : msg
-
-                )
-
-            );
-
-        }
-
-        catch (error) {
-
+            await axiosInstance.put(`/messages/delete/all/${messageId}`);
+            dispatch(markMessageDeletedForAll(messageId));
+        } catch (error) {
             console.log(error);
-
         }
-
     };
 
-
-
-    return {
-
-        deleteForMe,
-        deleteForEveryone
-
-    };
-
+    return { deleteForMe, deleteForEveryone };
 }

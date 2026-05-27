@@ -1,88 +1,170 @@
-import { useState } from "react";
+import { useState, useContext, useCallback, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+
+// Context
+import { SocketContext } from "../../context/SocketContext";
+import { CallContext } from "../../context/CallContext";
+
+// Redux
+import { setCallState, endCall as endCallAction } from "../../redux/features/callSlice";
+
+// Components
 import Sidebar from "./Sidebar";
 import ChatWindow from "../chat/ChatWindow";
 import ProfilePanel from "../chat/ProfilePanel";
 import LeftRail from "./LeftRail";
+import CallModal from "../chat/CallModal";
+import CallOverlay from "../chat/CallOverlay";
+
+// Hooks
+import useListenMessages from "../../hooks/useListenMessages";
+import useSendMessage from "../../hooks/useSendMessage";
 
 export default function AppLayout() {
-    const [selectedChat, setSelectedChat] = useState(true);
-    const [showProfile, setShowProfile] = useState(false);
-    const [activeTab, setActiveTab] = useState("chats");
+  const dispatch = useDispatch();
+  const { socket } = useContext(SocketContext);
+  const { myVideo, userVideo, peerRef, connectionRef } = useContext(CallContext);
 
-    return (
+  const call = useSelector((state) => state.call);
+  const selectedChatRedux = useSelector((state) => state.chat.selectedChat);
 
-        <div className="
-        h-screen
-        bg-[#F0F2F5]
-        flex
-        overflow-hidden
-        ">
+  const { sendMessage } = useSendMessage();
+  useListenMessages();
 
-            {/* LEFT ICON RAIL */}
+  const [showProfile, setShowProfile] = useState(false);
+  const [activeTab, setActiveTab] = useState("chats");
 
-            <LeftRail
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-            />
+  // ====================
+  // CALL CLEANUP
+  // ====================
+  const cleanupCall = useCallback(() => {
+    // Stop local and remote streams
+    [call?.stream, myVideo?.current?.srcObject, userVideo?.current?.srcObject].forEach((stream) => {
+      stream?.getTracks().forEach((track) => track.stop());
+    });
 
-            {/* SIDEBAR */}
+    if (myVideo?.current) myVideo.current.srcObject = null;
+    if (userVideo?.current) userVideo.current.srcObject = null;
 
-            <div className={`
-            ${selectedChat
-                    ? "hidden md:block"
-                    : "block"
-                }
-            `}>
+    if (connectionRef.current) {
+      connectionRef.current.close();
+      connectionRef.current = null;
+    }
 
-                <Sidebar
-                    activeTab={activeTab}
-                    setSelectedChat={setSelectedChat}
-                />
+    dispatch(endCallAction());
+  }, [call, myVideo, userVideo, connectionRef, dispatch]);
 
-            </div>
+  // ====================
+  // PEER CALL LOGIC
+  // ====================
+  useEffect(() => {
+    if (!peerRef?.current) return;
 
+    peerRef.current.on("call", (incomingCall) => {
+      connectionRef.current = incomingCall;
+    });
+  }, [peerRef, connectionRef]);
 
-            {/* CHAT */}
+  // ====================
+  // SOCKET EVENT LISTENERS
+  // ====================
+  useEffect(() => {
+    if (!socket) return;
 
-            <div className={`
-            flex-1
-            ${!selectedChat
-                    ? "hidden md:flex"
-                    : "flex"
-                }
-            `}>
+    const incoming = (data) => {
+      dispatch(setCallState({
+        isReceivingCall: true,
+        from: data.from,
+        type: data.type,
+        peerId: data.peerId,
+        remoteName: data.callerName,
+        remotePic: data.callerPic
+      }));
+    };
 
-                <ChatWindow
-                    setSelectedChat={setSelectedChat}
-                    setShowProfile={setShowProfile}
-                />
+    const accepted = () => {
+      dispatch(setCallState({ active: true }));
+    };
 
-            </div>
+    socket.on("call:incoming", incoming);
+    socket.on("call:accepted", accepted);
+    socket.on("call:ended", cleanupCall);
 
+    return () => {
+      socket.off("call:incoming", incoming);
+      socket.off("call:accepted", accepted);
+      socket.off("call:ended", cleanupCall);
+    };
+  }, [socket, cleanupCall, dispatch]);
 
-            {/* PROFILE PANEL */}
+  // ====================
+  // CALL ACTIONS
+  // ====================
+  const acceptCall = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: call.type === "video",
+        audio: true
+      });
 
-            <div className={`
-            fixed
-            top-0
-            right-0
-            h-full
-            z-50
-            transition-all
-            duration-300
-            md:relative
+      dispatch(setCallState({ stream, active: true, isReceivingCall: false }));
 
-            ${showProfile
-                    ? "translate-x-0"
-                    : "translate-x-full md:translate-x-0"
-                }
-            `}>
+      if (connectionRef.current) {
+        connectionRef.current.answer(stream);
+        connectionRef.current.on("stream", (remote) => {
+          if (userVideo?.current) userVideo.current.srcObject = remote;
+        });
+      }
 
-                <ProfilePanel />
+      sendMessage("📞 Call accepted");
+      socket.emit("call:accepted", { to: call.from });
+    } catch (err) {
+      console.error("Call acceptance failed:", err);
+    }
+  };
 
-            </div>
+  const rejectCall = () => {
+    socket.emit("call:ended", { to: call.from });
+    cleanupCall();
+  };
 
+  const endCall = () => {
+    socket.emit("call:ended", { to: call.from });
+    sendMessage("📞 Call ended");
+    cleanupCall();
+  };
 
+  return (
+    <div className="h-screen overflow-hidden bg-[#F0F2F5]">
+      <CallModal acceptCall={acceptCall} rejectCall={rejectCall} />
+      <CallOverlay onEndCall={endCall} />
+
+      {/* MOBILE TOP RAIL */}
+      <div className="lg:hidden h-[65px] border-b bg-white">
+        <LeftRail activeTab={activeTab} setActiveTab={setActiveTab} />
+      </div>
+
+      <div className="flex h-[calc(100vh-65px)] lg:h-screen">
+        {/* DESKTOP LEFT RAIL */}
+        <div className="hidden lg:block">
+          <LeftRail activeTab={activeTab} setActiveTab={setActiveTab} />
         </div>
-    )
+
+        {/* SIDEBAR */}
+        <div className={`w-full md:w-[380px] bg-white ${selectedChatRedux ? "hidden md:hidden lg:block" : "block"}`}>
+          <Sidebar activeTab={activeTab} />
+        </div>
+
+        {/* CHAT WINDOW */}
+        <div className={`flex-1 ${!selectedChatRedux ? "hidden md:hidden lg:flex" : "flex"}`}>
+          <ChatWindow setShowProfile={setShowProfile} />
+        </div>
+
+        {/* PROFILE PANEL */}
+        <div className="hidden lg:block">
+          <ProfilePanel />
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -6,12 +6,13 @@ import toast from "react-hot-toast";
 import validator from "validator";
 
 import axiosInstance from "../../services/axios";
-import { AuthContext } from "../../context/AuthContext";
+import { setUser } from "../../redux/features/authSlice";
+import { useDispatch } from "react-redux";
+
 
 export default function Login() {
-
     const navigate = useNavigate();
-    const { setUser } = useContext(AuthContext);
+    const dispatch = useDispatch()
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
             email: "",
@@ -19,7 +20,6 @@ export default function Login() {
         });
 
     const handleChange = (e) => {
-
         setFormData(prev => ({
             ...prev,
             [e.target.name]:
@@ -43,7 +43,7 @@ export default function Login() {
         try {
             setLoading(true);
             const { data } = await axiosInstance.post("/auth/login",formData);
-            setUser(data.user);
+            dispatch(setUser(data.user));
             toast.success(data.message);
             navigate("/chat");
         } catch (error) {

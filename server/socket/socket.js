@@ -9,7 +9,8 @@ const allowedOrigins = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(','
 export const initializeSocket = (server) => {
     io = new Server(server, {
         cors: {
-            origin: allowedOrigins,
+            origin: allowedOrigins.length > 0 ? allowedOrigins : "http://localhost:5173",
+            methods: ["GET", "POST"],
             credentials: true
         }
     });
@@ -27,48 +28,64 @@ export const initializeSocket = (server) => {
         socket.broadcast.emit("userCameOnline", userId);
 
         // Convert old undelivered messages
-        await MessageModel.updateMany(
-            { receiverId: userId, delivered: false },
-            { delivered: true }
-        );
+        if (userId) {
+            await MessageModel.updateMany(
+                { receiverId: userId, delivered: false },
+                { delivered: true }
+            );
 
-        // Notify senders about newly delivered messages
-        const newlyDelivered = await MessageModel.find({
-            receiverId: userId,
-            delivered: true,
-            seen: false
+            // Notify senders about newly delivered messages
+            const newlyDelivered = await MessageModel.find({
+                receiverId: userId,
+                delivered: true,
+                seen: false
+            });
+
+            newlyDelivered.forEach(msg => {
+                const senderSocket = userSocketMap.get(msg.senderId.toString());
+                if (senderSocket) {
+                    io.to(senderSocket).emit("messageDelivered", { messageId: msg._id });
+                }
+            });
+        }
+
+        // --- Call Feature ---
+        socket.on("call:initiate",(data)=>{
+        const receiverSocketId=userSocketMap.get(data.to);
+        if(receiverSocketId){
+            io.to(receiverSocketId).emit("call:incoming",{
+                from:userId,
+                type:data.type,
+                peerId:data.peerId,
+                callerName:data.callerName,
+                callerPic:data.callerPic
+            });
+        }
+    });
+        
+        socket.on("call:accepted", (data) => {
+            const callerSocketId = userSocketMap.get(data.to);
+            if (callerSocketId) io.to(callerSocketId).emit("call:accepted");
         });
 
-        newlyDelivered.forEach(msg => {
-            const senderSocket = userSocketMap.get(msg.senderId.toString());
-            if (senderSocket) {
-                io.to(senderSocket).emit("messageDelivered", { messageId: msg._id });
+        socket.on("call:ended", ({ to }) => {
+            const receiverSocketId = userSocketMap.get(to);
+            if(receiverSocketId){
+                io.to(receiverSocketId).emit("call:ended");
             }
         });
 
-        // --- Call Features ---
-       socket.on(
-"call:initiate",
-(data)=>{
-
-const receiver=
-onlineUsers[data.to]
-
-if(receiver){
-
-io.to(receiver).emit(
-"call:incoming",
-{
-
-from:socket.userId,
-type:data.type,
-peerId:data.peerId
-
-})
-
-}
-
-})
+        // ==========================================
+        // ADDED: The missing Message Router
+        // ==========================================
+        socket.on("sendMessage", (message) => {
+            const receiverSocketId = userSocketMap.get(message.receiverId);
+            
+            // If the receiver is currently online, send the message to their socket
+            if (receiverSocketId) {
+                io.to(receiverSocketId).emit("newMessage", message);
+            }
+        });
 
         // --- Chat Events ---
         socket.on("typing:start", ({ receiverId, userId }) => {
@@ -93,8 +110,10 @@ peerId:data.peerId
         });
 
         socket.on("disconnect", () => {
-            userSocketMap.delete(userId);
-            io.emit("onlineUsers", Array.from(userSocketMap.keys()));
+            if (userId) {
+                userSocketMap.delete(userId);
+                io.emit("onlineUsers", Array.from(userSocketMap.keys()));
+            }
         });
     });
 };
