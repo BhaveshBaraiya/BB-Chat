@@ -26,8 +26,11 @@ export const CallProvider = ({ children }) => {
         if (!user?._id) return;
 
         peerRef.current = new Peer(user._id, {
-            host: "localhost",
-            port: 5000,
+            host: import.meta.env.VITE_SERVER_URL.replace(
+                "https://",
+                ""
+            ),
+            secure: true,
             path: "/peerjs"
         });
 

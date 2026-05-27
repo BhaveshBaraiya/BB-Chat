@@ -5,9 +5,19 @@ export const fetchCurrentUser = createAsyncThunk('auth/fetchCurrentUser', async 
     try {
         const { data } = await axiosInstance.get("/auth/me");
         return data.user;
-    } catch (error) {
-        return rejectWithValue(error.response?.data || 'Failed to fetch user');
+    } catch(error){
+
+    if(
+        error.response?.status===401
+    ){
+        return rejectWithValue(null);
     }
+
+    return rejectWithValue(
+        error.response?.data ||
+        "Failed to fetch user"
+    );
+}
 });
 
 const authSlice = createSlice({
