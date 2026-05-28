@@ -122,7 +122,8 @@ export const sendMessage = async (req, res) => {
 
         const populatedMessage = await MessageModel
             .findById(newMessage._id)
-            .populate("replyTo", "text senderId");
+            .populate("replyTo", "text senderId")
+            .populate("senderId", "fullName profilePic");
 
         if (!blocked && receiverSocketId) {
             io.to(receiverSocketId).emit("newMessage", populatedMessage);
@@ -138,6 +139,59 @@ export const sendMessage = async (req, res) => {
             success: false,
             message: error.message
         });
+    }
+};
+
+// --- Add to controllers/user.controller.js ---
+
+export const toggleMuteChat = async (req, res) => {
+    try {
+        const { userId } = req.body;
+        const myId = req.user._id;
+        
+        // Check if the route called was 'mute-chat' or 'unmute-chat'
+        const action = req.path.includes('unmute') ? 'unmute' : 'mute';
+
+        const update = action === 'mute'
+            ? { $addToSet: { mutedChats: userId } } // Adds to array if not there
+            : { $pull: { mutedChats: userId } };    // Removes from array
+
+        const updatedUser = await UserModel.findByIdAndUpdate(
+            myId, 
+            update, 
+            { new: true }
+        );
+
+        res.status(200).json({ 
+            success: true, 
+            mutedChats: updatedUser.mutedChats 
+        });
+
+    } catch (error) {
+        console.log("Mute Chat Error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const updateNotificationSettings = async (req, res) => {
+    try {
+        const { muted } = req.body;
+        const myId = req.user._id;
+
+        const updatedUser = await UserModel.findByIdAndUpdate(
+            myId, 
+            { globalNotificationsMuted: muted }, 
+            { new: true }
+        );
+
+        res.status(200).json({ 
+            success: true, 
+            globalNotificationsMuted: updatedUser.globalNotificationsMuted 
+        });
+
+    } catch (error) {
+        console.log("Global Notification Error:", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 

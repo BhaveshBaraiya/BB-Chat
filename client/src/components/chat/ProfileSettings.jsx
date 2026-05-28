@@ -55,8 +55,9 @@ export default function ProfileSettings({ goBack }) {
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-white">
-
+    <div className="w-full h-[100dvh] sm:h-full flex flex-col bg-white overflow-hidden">
+      
+      {/* FIXED HEADER */}
       <div className="flex items-center gap-4 p-4 sm:p-6 border-b border-slate-100 shrink-0">
         <button onClick={goBack} className="p-2 -ml-2 rounded-full hover:bg-slate-100 transition text-slate-600">
           <FiArrowLeft size={20} />
@@ -65,9 +66,12 @@ export default function ProfileSettings({ goBack }) {
       </div>
 
       {/* SCROLLABLE CONTENT AREA */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24">
+      {/* Added pb-12 so the scroll doesn't stop abruptly at the button */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-12">
         <div className="max-w-xl mx-auto w-full">
-          <div className="flex justify-center mb-8">
+          
+          {/* Avatar Section */}
+          <div className="flex justify-center mb-8 mt-2">
             <label className="cursor-pointer relative group">
               <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-white shadow-lg">
                 <img
@@ -83,7 +87,8 @@ export default function ProfileSettings({ goBack }) {
             </label>
           </div>
 
-          <div className="space-y-4">
+          {/* Inputs Section */}
+          <div className="space-y-5">
             <div>
               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider ml-1">Full Name</label>
               <input 
@@ -104,22 +109,18 @@ export default function ProfileSettings({ goBack }) {
               />
             </div>
           </div>
+          <div className="my-8">
+            <button 
+              onClick={save} 
+              disabled={loading} 
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3.5 sm:py-4 rounded-xl shadow-lg shadow-indigo-200 transition-all active:scale-[0.98] disabled:opacity-70"
+            >
+              {loading ? "Updating..." : "Save Changes"}
+            </button>
+          </div>
+
         </div>
       </div>
-
-      {/* FIXED FOOTER WITH BUTTON */}
-      <div className="p-4 sm:p-6 bg-white border-t border-slate-100 shrink-0">
-        <div className="max-w-xl mx-auto w-full">
-          <button 
-            onClick={save} 
-            disabled={loading} 
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-4 rounded-xl shadow-lg shadow-indigo-200 transition-all active:scale-[0.98] disabled:opacity-70"
-          >
-            {loading ? "Updating..." : "Save Changes"}
-          </button>
-        </div>
-      </div>
-
     </div>
   );
 }

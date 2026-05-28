@@ -32,14 +32,23 @@ export default function AppRoutes() {
     return (
         <BrowserRouter>
             <Routes>
+                {/* Root Route */}
                 <Route
                     path="/"
                     element={user ? <Navigate to="/chat" replace /> : <Login />}
                 />
+                
+                {/* 👇 THE MISSING ROUTE 👇 */}
+                <Route
+                    path="/login"
+                    element={user ? <Navigate to="/chat" replace /> : <Login />}
+                />
+
                 <Route
                     path="/register"
                     element={user ? <Navigate to="/chat" replace /> : <Register />}
                 />
+                
                 <Route
                     path="/chat"
                     element={
@@ -48,6 +57,8 @@ export default function AppRoutes() {
                         </ProtectedRoute>
                     }
                 />
+
+                <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </BrowserRouter>
     );

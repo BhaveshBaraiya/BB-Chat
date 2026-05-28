@@ -4,7 +4,6 @@ import { getIO, userSocketMap } from "../socket/socket.js";
 
 export const getUsers = async (req, res) => {
     try {
-
         const currentUser = await UserModel.findById(req.user._id);
 
         const users = await UserModel.find({
@@ -12,9 +11,7 @@ export const getUsers = async (req, res) => {
         }).select("-password");
 
         const updatedUsers = users.map(user => {
-
             const iBlocked = currentUser.blockedUsers?.includes(user._id);
-
             const blockedMe = user.blockedUsers?.includes(req.user._id);
 
             return {
@@ -75,9 +72,7 @@ export const searchUsers = async (req, res) => {
 export const updateProfile = async (req, res) => {
     try {
         const userId = req.user._id;
-
         const { fullName, bio } = req.body;
-
         let profilePic = req.file?.path || null;
 
         const user = await UserModel.findById(userId);
@@ -166,5 +161,58 @@ export const blocked = async (req, res) => {
         res.status(200).json(currentUser.blockedUsers);
     } catch (error) {
         res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+// --- NEW MUTE CONTROLLERS ---
+
+export const toggleMuteChat = async (req, res) => {
+    try {
+        const { userId } = req.body;
+        const myId = req.user._id;
+        
+        // Check if the route called was 'mute-chat' or 'unmute-chat'
+        const action = req.path.includes('unmute') ? 'unmute' : 'mute';
+
+        const update = action === 'mute'
+            ? { $addToSet: { mutedChats: userId } } // Adds to array if not there
+            : { $pull: { mutedChats: userId } };    // Removes from array
+
+        const updatedUser = await UserModel.findByIdAndUpdate(
+            myId, 
+            update, 
+            { new: true }
+        );
+
+        res.status(200).json({ 
+            success: true, 
+            mutedChats: updatedUser.mutedChats 
+        });
+
+    } catch (error) {
+        console.log("Mute Chat Error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const updateNotificationSettings = async (req, res) => {
+    try {
+        const { muted } = req.body;
+        const myId = req.user._id;
+
+        const updatedUser = await UserModel.findByIdAndUpdate(
+            myId, 
+            { globalNotificationsMuted: muted }, 
+            { new: true }
+        );
+
+        res.status(200).json({ 
+            success: true, 
+            globalNotificationsMuted: updatedUser.globalNotificationsMuted 
+        });
+
+    } catch (error) {
+        console.log("Global Notification Error:", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };

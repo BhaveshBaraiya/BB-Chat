@@ -29,7 +29,6 @@ const userSchema = new mongoose.Schema(
         type:String,
         default:"Hey there! I am using MERN Chat"
         },
-        
         blockedUsers: [
             {
                 type: mongoose.Schema.Types.ObjectId,
@@ -37,6 +36,14 @@ const userSchema = new mongoose.Schema(
                 default: []
             }
         ],
+        globalNotificationsMuted: { 
+            type: Boolean, 
+            default: false 
+        },
+        mutedChats: [{ 
+            type: mongoose.Schema.Types.ObjectId, 
+            ref: 'User' 
+        }],
     },
     {
         timestamps: true

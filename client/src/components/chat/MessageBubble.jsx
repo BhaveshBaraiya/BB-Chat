@@ -97,18 +97,17 @@ const WhatsAppAudioPlayer = ({ src, own }) => {
     );
 };
 
-export default function MessageBubble({ messageObj, message, own, time, delivered, seen }) {
+export default function MessageBubble({ messageObj, message, own, time, delivered, seen, onImageClick }) {
     const dispatch = useDispatch();
 
     const { deleteForMe, deleteForEveryone } = useDeleteMessage();
     const { reactToMessage } = useReaction();
     const { editMessage } = useEditMessage();
-    const { pinMessage } = usePinMessage();    
+    const { pinMessage } = usePinMessage();
     const [showMenu, setShowMenu] = useState(false);
     const [showReaction, setShowReaction] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [showInfo, setShowInfo] = useState(false);
-    const [showImage, setShowImage] = useState(null);
     const [editing, setEditing] = useState(false);
     const [editedText, setEditedText] = useState(message);
     const [isMobile, setIsMobile] = useState(false);
@@ -160,7 +159,6 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
 
     const handleTouchStart = () => {
         if (isMobile && !actionVisible) {
-            // Clear any existing timer just in case
             if (longPressTimer.current) clearTimeout(longPressTimer.current);
             
             longPressTimer.current = setTimeout(() => {
@@ -217,7 +215,6 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
         setShowEmojiPicker(false);
     };
 
-    // ADDED: Pass the event (e) to prevent bubbling
     const handleReplyClick = (e) => {
         e.stopPropagation();
         dispatch(setReplyMessage(messageObj));
@@ -333,7 +330,14 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                                                 key={index}
                                                 src={getMediaUrl(img)} 
                                                 alt="attachment"
-                                                onClick={(e) => { e.stopPropagation(); setShowImage(img); }}
+                                                onClick={(e) => { 
+                                                    e.stopPropagation(); 
+                                                    // Pass the full array of formatted URLs up to the ChatWindow
+                                                    if(onImageClick) {
+                                                        const resolvedImages = messageObj.images.map(i => getMediaUrl(i));
+                                                        onImageClick(resolvedImages, index);
+                                                    }
+                                                }}
                                                 className="max-w-[180px] rounded-xl cursor-pointer hover:opacity-95 transition object-cover"
                                             />
                                         ))}
@@ -507,12 +511,12 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                         className="fixed inset-0 bg-black/40 z-[100]" 
                         onClick={(e) => {
                             e.stopPropagation();
-                            setShowMenu(false); // Close if tapping the black background
+                            setShowMenu(false);
                         }}
                     >
                         <div 
                             className="absolute top-16 right-4 w-[220px] bg-white rounded-xl shadow-2xl overflow-hidden border border-slate-100"
-                            onClick={(e) => e.stopPropagation()} // STOP CLICKS FROM CLOSING THE MODAL PREMATURELY
+                            onClick={(e) => e.stopPropagation()} 
                         >
                             <button onClick={handleReplyClick} className="w-full px-4 py-3 text-left text-sm hover:bg-slate-100 flex items-center gap-2 text-slate-700">
                                 <FiCornerUpLeft size={14} /> Reply
@@ -571,12 +575,12 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                     <div 
                         className="fixed inset-0 bg-black/40 z-[100]" 
                         onClick={(e) => { e.stopPropagation(); setShowReaction(false); }}
-                        onTouchStart={(e) => e.stopPropagation()} // BLOCK TOUCH BUBBLING
+                        onTouchStart={(e) => e.stopPropagation()}
                     >
                         <div 
                             className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl p-4"
                             onClick={(e) => e.stopPropagation()}
-                            onTouchStart={(e) => e.stopPropagation()} // BLOCK TOUCH BUBBLING
+                            onTouchStart={(e) => e.stopPropagation()}
                         >
                             <div className="flex gap-3 mb-4 justify-center">
                                 {emojis.map(emoji => (
@@ -614,12 +618,12 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                     <div 
                         className="fixed inset-0 bg-black/40 z-[100]" 
                         onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(false); }}
-                        onTouchStart={(e) => e.stopPropagation()} // BLOCK TOUCH BUBBLING
+                        onTouchStart={(e) => e.stopPropagation()}
                     >
                         <div 
                             className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
                             onClick={(e) => e.stopPropagation()}
-                            onTouchStart={(e) => e.stopPropagation()} // BLOCK TOUCH BUBBLING
+                            onTouchStart={(e) => e.stopPropagation()} 
                         >
                             <EmojiPicker
                                 onEmojiClick={(emojiData) => handleReactionClick({stopPropagation: () => {}}, emojiData.emoji)}
@@ -634,44 +638,6 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                     </div>
                 )}
             </div>
-
-            {/* Image Preview Modal */}
-            {showImage && (
-                <div 
-                    className="fixed inset-0 bg-black/90 z-[999] flex items-center justify-center p-4" 
-                    onClick={(e) => { e.stopPropagation(); setShowImage(null); }}
-                    onTouchStart={(e) => e.stopPropagation()}
-                >
-                    <button onClick={(e) => { e.stopPropagation(); setShowImage(null); }} className="absolute top-4 right-4 text-white text-2xl hover:text-red-400 transition z-[1000]">
-                        <FiX />
-                    </button>
-                    <a href={getMediaUrl(showImage)} download target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="absolute top-4 left-4 text-white text-2xl hover:text-indigo-400 transition z-[1000]" title="Download Image">
-                        <FiDownload />
-                    </a>
-                    <button
-                        onClick={async (e) => {
-                            e.stopPropagation();
-                            try {
-                                const response = await fetch(getMediaUrl(showImage)); 
-                                const blob = await response.blob();
-                                await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-                                alert("Image copied to clipboard!");
-                            } catch (err) {
-                                console.error("Failed to copy image", err);
-                            }
-                        }}
-                        className="absolute top-4 left-16 text-white text-2xl hover:text-indigo-400 transition z-[1000]" title="Copy Image"
-                    >
-                        <FiCopy />
-                    </button>
-                    <img 
-                        src={getMediaUrl(showImage)} 
-                        className="max-h-[90vh] max-w-[90vw] rounded-xl object-contain" 
-                        alt="Full Screen Preview"
-                        onClick={(e) => e.stopPropagation()}
-                    />
-                </div>
-            )}
 
             {/* Message Info Modal */}
             {showInfo && (
