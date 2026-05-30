@@ -12,7 +12,7 @@ export default function SettingsContent() {
     const dispatch = useDispatch();
     const user = useSelector((state) => state.auth.user);
     const [active, setActive] = useState("");
-    const { theme, setTheme } = useContext(ThemeContext); 
+    const { theme, setTheme } = useContext(ThemeContext);
     const [blockedUsers, setBlockedUsers] = useState([]);
     const [loadingBlocked, setLoadingBlocked] = useState(false);
     
@@ -226,10 +226,7 @@ export default function SettingsContent() {
                     <MenuItem icon={FiLock} title="Privacy" onClick={() => setActive("privacy")} />
                     <MenuItem icon={FiMoon} title="Theme" onClick={() => setActive("theme")} />
                 </div>
-            </div>
-
-            <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 shrink-0">
-                <div className="max-w-xl mx-auto w-full">
+                <div className="max-w-xl mx-auto w-full mt-10">
                     <LogoutButton />
                 </div>
             </div>

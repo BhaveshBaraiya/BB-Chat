@@ -8,16 +8,16 @@ import {
     updateMessageStatus,
     updateMessageReaction,
     markMessageDeletedForAll,
-    setSelectedChat
+    setSelectedChat,
+    addTypingUser,
+    removeTypingUser
 } from "../redux/features/chatSlice";
 
 export default function useListenMessages() {
     const { socket } = useContext(SocketContext);
     const dispatch = useDispatch();
     const selectedChat = useSelector((state) => state.chat.selectedChat);
-    
     const user = useSelector((state) => state.auth.user);
-    
     const lastMessageId = useRef(null);
 
     useEffect(() => {
@@ -33,9 +33,7 @@ export default function useListenMessages() {
                 dispatch(addMessage(newMessage));
                 socket.emit("messageSeen", { messageId: newMessage._id, senderId: senderIdString });
             } else {
-                dispatch(incrementUnreadCount(senderIdString));
-
-                // --- PRODUCTION MUTE CHECK: Check Redux state instead of localStorage ---
+                dispatch(incrementUnreadCount(senderIdString));                
                 const isGlobalMuted = user.globalNotificationsMuted === true;
                 const isChatMuted = user.mutedChats?.includes(senderIdString);
                 
@@ -105,16 +103,29 @@ export default function useListenMessages() {
         const handleDeleted = (messageId) => dispatch(markMessageDeletedForAll(messageId));
         const handleSeen = ({ messageId }) => dispatch(updateMessageStatus({ id: messageId, status: 'seen' }));
 
+        // ADDED TYPING LISTENERS
+        const handleTypingStart = ({ userId }) => {
+            dispatch(addTypingUser(userId));
+        };
+
+        const handleTypingStop = ({ userId }) => {
+            dispatch(removeTypingUser(userId));
+        };
+
         socket.on("newMessage", handleNewMessage);
         socket.on("messageReaction", handleReaction);
         socket.on("messageDeletedForAll", handleDeleted);
         socket.on("messageSeen", handleSeen); 
+        socket.on("typing:start", handleTypingStart);
+        socket.on("typing:stop", handleTypingStop);
 
         return () => {
             socket.off("newMessage", handleNewMessage);
             socket.off("messageReaction", handleReaction);
             socket.off("messageDeletedForAll", handleDeleted);
             socket.off("messageSeen", handleSeen);
+            socket.off("typing:start", handleTypingStart);
+            socket.off("typing:stop", handleTypingStop);
         };
     }, [socket, dispatch, selectedChat, user]);
 }

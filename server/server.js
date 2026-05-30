@@ -8,7 +8,6 @@ import { ExpressPeerServer } from 'peer';
 
 dotenv.config();
 
-
 // DB + Routes
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
@@ -28,13 +27,12 @@ const allowedOrigins = process.env.CLIENT_URL
     ? process.env.CLIENT_URL.split(',') 
     : ["http://localhost:5173"];
 
-app.use(
-    cors({
-        origin: allowedOrigins,
-        credentials: true,
-    })
-);
+const corsOptions = {
+    origin: allowedOrigins,
+    credentials: true,
+};
 
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -55,20 +53,33 @@ app.use("/api/users", userRoutes);
 app.use("/api/messages", messageRoutes);
 
 /* ========================
-   SOCKET
+   SOCKET.IO SERVER
 ======================== */
 
 const server = http.createServer(app);
 initializeSocket(server);
 
-const peerServer = ExpressPeerServer(server, {
+/* ========================
+   PEERJS SERVER
+======================== */
+const peerApp = express();
+peerApp.use(cors(corsOptions)); 
+
+const peerHttpServer = http.createServer(peerApp);
+const peerServer = ExpressPeerServer(peerHttpServer, {
     debug: true,
+    path: '/stream',
 });
 
-app.use('/peerjs', peerServer);
+peerApp.use('/peerjs', peerServer);
+
+const PEER_PORT = process.env.PEER_PORT || 5001;
+peerHttpServer.listen(PEER_PORT, () => {
+    console.log(`📡 PeerJS server running on port ${PEER_PORT}`);
+});
 
 /* ========================
-   START SERVER
+   START MAIN SERVER
 ======================== */
 
 const PORT = process.env.PORT || 5000;

@@ -156,7 +156,7 @@ export default function ChatWindow() {
         };
         socket.on("userCameOnline", handleUserOnline);
         return () => socket.off("userCameOnline", handleUserOnline);
-    }, [socket, selectedChat, user, messages, dispatch]); 
+    }, [socket, selectedChat, user, dispatch]); 
 
     useEffect(() => {
         if (!socket || !selectedChat) return;
