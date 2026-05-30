@@ -129,6 +129,7 @@ export default function Register() {
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
+                                disabled={!formData.password.trim()}
                                 className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                             >
                                 {showPassword ? <FiEyeOff size={20} /> : <FiEye size={20} />}
@@ -145,7 +146,7 @@ export default function Register() {
 
                     <div className="mt-8 text-center">
                         <p className="text-slate-500 dark:text-slate-400 font-medium">
-                            Already have an account? <Link to="/login" className="text-indigo-600 dark:text-indigo-400 hover:underline ml-2">Log In</Link>
+                            Already have an account? <Link to="/login" className="text-indigo-600 dark:text-indigo-400 hover:underline ml-2">Login</Link>
                         </p>
                     </div>
                 </div>

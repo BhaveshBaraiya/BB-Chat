@@ -148,10 +148,10 @@ export default function UserList({searchTerm, onGoToFriends}) {
                                 )}
                             </div>
                             <div>
-                                <h3 className="font-medium dark:text-indigo-400 text-slate-800 dark:text-slate-200">
+                                <h3 className="font-medium">
                                     {user.fullName}
                                 </h3>
-                                <p className={`text-sm ${showOnline ? "text-green-500 font-medium" : "text-slate-500 dark:text-slate-400"}`}>
+                                <p className={`text-sm ${showOnline ? "text-green-500 font-medium" : "text-slate-500 dark:text-slate-500"}`}>
                                     {showOnline ? "Online" : "Offline"}
                                 </p>
                             </div>
