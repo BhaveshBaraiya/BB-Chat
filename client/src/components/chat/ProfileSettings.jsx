@@ -55,28 +55,28 @@ export default function ProfileSettings({ goBack }) {
   };
 
   return (
-    <div className="w-full h-[100dvh] sm:h-full flex flex-col bg-white overflow-hidden">
+    // Fixed mobile viewport issues using absolute positioning
+    <div className="absolute inset-0 sm:relative sm:w-full sm:h-full flex flex-col bg-white dark:bg-slate-900 overflow-hidden z-50">
       
       {/* FIXED HEADER */}
-      <div className="flex items-center gap-4 p-4 sm:p-6 border-b border-slate-100 shrink-0">
-        <button onClick={goBack} className="p-2 -ml-2 rounded-full hover:bg-slate-100 transition text-slate-600">
+      <div className="flex items-center gap-4 p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900 z-10">
+        <button onClick={goBack} className="p-2 -ml-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition text-slate-600 dark:text-slate-300">
           <FiArrowLeft size={20} />
         </button>
-        <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Edit Profile</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">Edit Profile</h2>
       </div>
 
-      {/* SCROLLABLE CONTENT AREA */}
-      {/* Added pb-12 so the scroll doesn't stop abruptly at the button */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-12">
+      {/* Increased pb-32 to guarantee the button clears mobile gesture indicators */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-32">
         <div className="max-w-xl mx-auto w-full">
           
           {/* Avatar Section */}
           <div className="flex justify-center mb-8 mt-2">
             <label className="cursor-pointer relative group">
-              <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-white shadow-lg">
+              <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-white dark:border-slate-800 shadow-lg">
                 <img
                   src={preview || `https://ui-avatars.com/api/?name=${user?.fullName}`}
-                  className="w-full h-full object-cover bg-slate-100"
+                  className="w-full h-full object-cover bg-slate-100 dark:bg-slate-800"
                   alt="profile"
                 />
               </div>
@@ -90,35 +90,32 @@ export default function ProfileSettings({ goBack }) {
           {/* Inputs Section */}
           <div className="space-y-5">
             <div>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider ml-1">Full Name</label>
+              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Full Name</label>
               <input 
                 value={fullName} 
                 onChange={(e) => setFullName(e.target.value)} 
                 placeholder="Enter your name" 
-                className="w-full bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-xl mt-1.5 focus:ring-2 focus:ring-indigo-500 outline-none transition text-slate-800 font-medium" 
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3.5 rounded-xl mt-1.5 focus:ring-2 focus:ring-indigo-500 outline-none transition text-slate-800 dark:text-slate-100 font-medium" 
               />
             </div>
             
             <div>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider ml-1">About</label>
+              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">About</label>
               <textarea 
                 value={bio} 
                 onChange={(e) => setBio(e.target.value)} 
                 placeholder="Tell us about yourself" 
-                className="w-full bg-slate-50 border border-slate-200 px-4 py-3.5 rounded-xl mt-1.5 focus:ring-2 focus:ring-indigo-500 outline-none transition text-slate-800 h-[120px] resize-none" 
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3.5 rounded-xl mt-1.5 focus:ring-2 focus:ring-indigo-500 outline-none transition text-slate-800 dark:text-slate-100 h-[120px] resize-none" 
               />
             </div>
-          </div>
-          <div className="my-8">
             <button 
               onClick={save} 
               disabled={loading} 
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3.5 sm:py-4 rounded-xl shadow-lg shadow-indigo-200 transition-all active:scale-[0.98] disabled:opacity-70"
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3.5 sm:py-4 rounded-xl shadow-lg shadow-indigo-200 dark:shadow-none transition-all active:scale-[0.98] disabled:opacity-70 mt-4"
             >
               {loading ? "Updating..." : "Save Changes"}
             </button>
           </div>
-
         </div>
       </div>
     </div>

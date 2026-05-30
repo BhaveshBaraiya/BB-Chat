@@ -13,6 +13,7 @@ import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
+import friendRoutes from "./routes/friendRoutes.js";
 import { initializeSocket } from "./socket/socket.js";
 
 // Connect DB
@@ -51,6 +52,7 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/friends", friendRoutes);
 
 /* ========================
    SOCKET.IO SERVER

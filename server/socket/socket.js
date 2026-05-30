@@ -25,10 +25,8 @@ export const initializeSocket = (server) => {
 
         io.emit("onlineUsers", Array.from(userSocketMap.keys()));
 
-        // Notify others that user came online
-        socket.broadcast.emit("userCameOnline", userId);
+        socket.broadcast.emit("userCameOnline", { userId });
 
-        // Convert old undelivered messages
         if (userId) {
 
             const undeliveredMessages = await MessageModel.find({
@@ -39,7 +37,6 @@ export const initializeSocket = (server) => {
             for (const msg of undeliveredMessages) {
 
                 const sender = await UserModel.findById(msg.senderId);
-
                 const receiver = await UserModel.findById(msg.receiverId);
 
                 // CHECK BLOCK STATUS
@@ -47,19 +44,14 @@ export const initializeSocket = (server) => {
                     sender.blockedUsers?.includes(receiver._id) ||
                     receiver.blockedUsers?.includes(sender._id);
 
-                // IF BLOCKED -> DO NOT DELIVER
                 if (blocked) {
                     continue;
                 }
 
-                // MARK AS DELIVERED
                 msg.delivered = true;
-
                 await msg.save();
 
-                // SEND DOUBLE TICK EVENT
                 const senderSocket = userSocketMap.get(msg.senderId.toString());
-
                 if (senderSocket) {
                     io.to(senderSocket).emit("messageDelivered", {
                         messageId: msg._id
@@ -67,11 +59,10 @@ export const initializeSocket = (server) => {
                 }
             }
         }
+        
         // --- Call Feature ---
-        socket.on("call:initiate",async(data)=>{
-
+        socket.on("call:initiate", async(data) => {
             const caller = await UserModel.findById(userId);
-
             const receiver = await UserModel.findById(data.to);
 
             const blocked =
@@ -79,17 +70,17 @@ export const initializeSocket = (server) => {
                 receiver.blockedUsers?.includes(caller._id);
 
             if (blocked) return;
-        const receiverSocketId=userSocketMap.get(data.to);
-        if(receiverSocketId){
-            io.to(receiverSocketId).emit("call:incoming",{
-                from:userId,
-                type:data.type,
-                peerId:data.peerId,
-                callerName:data.callerName,
-                callerPic:data.callerPic
-            });
-        }
-    });
+            const receiverSocketId = userSocketMap.get(data.to);
+            if(receiverSocketId){
+                io.to(receiverSocketId).emit("call:incoming",{
+                    from:userId,
+                    type:data.type,
+                    peerId:data.peerId,
+                    callerName:data.callerName,
+                    callerPic:data.callerPic
+                });
+            }
+        });
         
         socket.on("call:accepted", (data) => {
             const callerSocketId = userSocketMap.get(data.to);
@@ -103,9 +94,6 @@ export const initializeSocket = (server) => {
             }
         });
 
-        // ==========================================
-        // ADDED: The missing Message Router
-        // ==========================================
         socket.on("sendMessage", async(message) => {
             const sender = await UserModel.findById(message.senderId);
             const receiver = await UserModel.findById(message.receiverId);
@@ -133,7 +121,6 @@ export const initializeSocket = (server) => {
         });
 
         socket.on("typing:stop", async({ receiverId, userId }) => {
-
             const sender = await UserModel.findById(userId);
             const receiver = await UserModel.findById(receiverId);
             const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
@@ -149,27 +136,30 @@ export const initializeSocket = (server) => {
         });
 
         socket.on("messageSeen", async ({ messageId, senderId }) => {
-
             const msg = await MessageModel.findById(messageId);
-
             const sender = await UserModel.findById(msg.senderId);
-
             const receiver = await UserModel.findById(msg.receiverId);
 
             const blocked =
                 sender.blockedUsers?.includes(receiver._id) ||
                 receiver.blockedUsers?.includes(sender._id);
 
-        if (blocked) return;
+            if (blocked) return;
             await MessageModel.findByIdAndUpdate(messageId, { seen: true });
             const senderSocket = userSocketMap.get(senderId);
             if (senderSocket) io.to(senderSocket).emit("messageSeen", { messageId });
         });
 
-        socket.on("disconnect", () => {
+        socket.on("disconnect", async () => {
             if (userId) {
                 userSocketMap.delete(userId);
                 io.emit("onlineUsers", Array.from(userSocketMap.keys()));
+
+                const lastSeenTime = new Date();
+
+                await UserModel.findByIdAndUpdate(userId, { lastSeen: lastSeenTime });
+                
+                io.emit("userWentOffline", { userId, lastSeen: lastSeenTime });
             }
         });
     });

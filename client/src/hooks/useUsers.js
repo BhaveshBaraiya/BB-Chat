@@ -1,31 +1,25 @@
 import { useEffect, useState } from "react";
-
 import axiosInstance from "../services/axios";
 
 export default function useUsers() {
-
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(()=>{
-        const getUsers= async()=> {
+    useEffect(() => {
+        const getUsers = async () => {
             try {
-                const {data} = await axiosInstance.get("/users");
+                // Hitting the combined endpoint for the sidebar
+                const { data } = await axiosInstance.get("/friends/sidebar-users");
                 setUsers(data.users);
-            }
-
-            catch(error){
+            } catch (error) {
                 console.log(error);
-            }
-
-            finally{
+            } finally {
                 setLoading(false);
             }
         };
 
         getUsers();
-
-    },[]);
+    }, []);
 
     return { users, loading };
 }

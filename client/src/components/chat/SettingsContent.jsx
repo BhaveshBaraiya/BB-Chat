@@ -7,23 +7,26 @@ import { ThemeContext } from "../../context/ThemeContext";
 import axiosInstance from "../../services/axios";
 import toast from "react-hot-toast";
 import { updateUser } from "../../redux/features/authSlice";
+import { SocketContext } from "../../context/SocketContext";
 
 export default function SettingsContent() {
     const dispatch = useDispatch();
     const user = useSelector((state) => state.auth.user);
     const [active, setActive] = useState("");
     const { theme, setTheme } = useContext(ThemeContext);
+    const { socket } = useContext(SocketContext);
+    
     const [blockedUsers, setBlockedUsers] = useState([]);
     const [loadingBlocked, setLoadingBlocked] = useState(false);
     
-    // --- PRODUCTION MUTE LOGIC: Read straight from Redux ---
     const isGlobalMuted = user?.globalNotificationsMuted || false;
+    // Assume defaults to true if not set
+    const isOnlineStatusVisible = user?.showOnlineStatus !== false; 
 
     const toggleTheme = () => {
         setTheme(theme === 'dark' ? 'light' : 'dark');
     };
 
-    // --- PRODUCTION MUTE HANDLER: Update DB and Redux ---
     const toggleNotifications = async () => {
         try {
             const newState = !isGlobalMuted;
@@ -31,8 +34,25 @@ export default function SettingsContent() {
             dispatch(updateUser({ globalNotificationsMuted: newState }));
             toast.success(newState ? "Notifications muted 🔕" : "Notifications enabled 🔔");
         } catch (error) {
-            console.error(error);
             toast.error("Failed to update settings");
+        }
+    };
+
+    // New Global Online Status Toggle
+    const toggleOnlineStatus = async () => {
+        try {
+            const newState = !isOnlineStatusVisible;
+            await axiosInstance.put("/users/settings/privacy", { showOnlineStatus: newState });
+            dispatch(updateUser({ showOnlineStatus: newState }));
+            
+            // Immediately notify socket to broadcast the update
+            if (socket) {
+                socket.emit("updatePrivacy", { showOnlineStatus: newState });
+            }
+            
+            toast.success(newState ? "Online status is now visible to others" : "Online status is now hidden");
+        } catch (error) {
+            toast.error("Failed to update privacy settings");
         }
     };
     
@@ -44,7 +64,7 @@ export default function SettingsContent() {
                     const { data } = await axiosInstance.get("/users/blocked");
                     setBlockedUsers(data);
                 } catch (error) {
-                    console.error("Failed to fetch blocked users:", error);
+                    console.error("Failed to fetch blocked users");
                 } finally {
                     setLoadingBlocked(false);
                 }
@@ -59,7 +79,6 @@ export default function SettingsContent() {
             setBlockedUsers(prev => prev.filter(u => u._id !== blockedUserId));
             toast.success("User unblocked");
         } catch (error) {
-            console.error("Failed to unblock:", error);
             toast.error("Failed to unblock user");
         }
     };
@@ -70,20 +89,31 @@ export default function SettingsContent() {
 
     if (active === "privacy") {
         return (
-            <div className="w-full h-full flex flex-col bg-white dark:bg-slate-900">
-                <div className="flex items-center gap-4 p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 shrink-0">
+            <div className="absolute inset-0 sm:relative sm:w-full sm:h-full flex flex-col bg-white dark:bg-slate-900 z-50">
+                <div className="flex items-center gap-4 p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900">
                     <button onClick={() => setActive("")} className="p-2 -ml-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition text-slate-600 dark:text-slate-300">
                         <FiArrowLeft size={20} />
                     </button>
                     <h2 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">Privacy</h2>
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-32">
                     <div className="max-w-xl mx-auto w-full space-y-8">
                         
-                        {/* Standard Privacy Toggles */}
                         <div>
                             <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1 mb-3">General</h3>
                             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+                                
+                                {/* New Online Status Toggle */}
+                                <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center text-slate-700 dark:text-slate-200">
+                                    <span>Show Online Status</span>
+                                    <button 
+                                        onClick={toggleOnlineStatus}
+                                        className={`w-12 h-6 rounded-full transition-colors relative ${isOnlineStatusVisible ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'}`}
+                                    >
+                                        <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 shadow-sm transition-transform ${isOnlineStatusVisible ? 'translate-x-6' : 'translate-x-1'}`}></div>
+                                    </button>
+                                </div>
+                                
                                 <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center text-slate-700 dark:text-slate-200">
                                     <span>Read Receipts</span>
                                     <input type="checkbox" className="w-5 h-5 accent-indigo-600" defaultChecked />
@@ -137,14 +167,14 @@ export default function SettingsContent() {
 
     if (active === "theme") {
         return (
-            <div className="w-full h-full flex flex-col bg-white dark:bg-slate-900">
-                <div className="flex items-center gap-4 p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 shrink-0">
+            <div className="absolute inset-0 sm:relative sm:w-full sm:h-full flex flex-col bg-white dark:bg-slate-900 z-50">
+                <div className="flex items-center gap-4 p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900">
                     <button onClick={() => setActive("")} className="p-2 -ml-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition text-slate-600 dark:text-slate-300">
                         <FiArrowLeft size={20} />
                     </button>
                     <h2 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">Theme</h2>
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-32">
                     <div className="max-w-xl mx-auto w-full">
                         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
                             <div className="p-4 flex justify-between items-center text-slate-700 dark:text-slate-200">
@@ -167,14 +197,14 @@ export default function SettingsContent() {
 
     if (active === "notifications") {
         return (
-            <div className="w-full h-full flex flex-col bg-white dark:bg-slate-900">
-                <div className="flex items-center gap-4 p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 shrink-0">
+            <div className="absolute inset-0 sm:relative sm:w-full sm:h-full flex flex-col bg-white dark:bg-slate-900 z-50">
+                <div className="flex items-center gap-4 p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900">
                     <button onClick={() => setActive("")} className="p-2 -ml-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition text-slate-600 dark:text-slate-300">
                         <FiArrowLeft size={20} />
                     </button>
                     <h2 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">Notifications</h2>
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-32">
                     <div className="max-w-xl mx-auto w-full">
                         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
                             <div className="p-4 flex justify-between items-center text-slate-700 dark:text-slate-200">
@@ -219,7 +249,7 @@ export default function SettingsContent() {
                 <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-slate-100 mt-2">Settings</h1>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-32">
                 <div className="max-w-xl mx-auto w-full">
                     <MenuItem icon={FiUser} title="Profile" onClick={() => setActive("profile")} />
                     <MenuItem icon={FiBell} title="Notifications" onClick={() => setActive("notifications")} />

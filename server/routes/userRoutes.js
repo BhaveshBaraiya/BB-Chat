@@ -8,7 +8,7 @@ import {
     unblockUser, 
     blockUser, 
     toggleMuteChat, 
-    updateNotificationSettings
+    updateNotificationSettings,    
 } from "../controllers/userController.js";
 import upload from "../middleware/upload.js";
 
@@ -22,7 +22,7 @@ router.post("/block", protect, blockUser);
 router.post("/unblock", protect, unblockUser);
 router.get("/blocked", protect, blocked);
 
-// Mute specific user chat
+// Mute/Unmute Chats
 router.post("/mute-chat", protect, toggleMuteChat);
 router.post("/unmute-chat", protect, toggleMuteChat);
 

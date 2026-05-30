@@ -16,7 +16,6 @@ const chatSlice = createSlice({
         setForwardMessageData: (state, action) => { state.forwardMessageData = action.payload; },
         setMessages: (state, action) => { state.messages = action.payload; },
         
-        // Granular actions optimized for socket events
         addMessage: (state, action) => {
             if (!state.messages.some(m => m._id === action.payload._id)) {
                 state.messages.push(action.payload);

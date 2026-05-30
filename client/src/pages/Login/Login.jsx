@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { FiMail, FiLock, FiMessageSquare } from "react-icons/fi";
-
+import { FiMail, FiLock, FiMessageSquare, FiEye, FiEyeOff } from "react-icons/fi";
 import toast from "react-hot-toast";
 import validator from "validator";
-
 import axiosInstance from "../../services/axios";
 import { setUser } from "../../redux/features/authSlice";
 import { useDispatch } from "react-redux";
@@ -14,6 +12,7 @@ export default function Login() {
     const navigate = useNavigate();
     const dispatch = useDispatch();
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const [formData, setFormData] = useState({
         email: "",
         password: ""
@@ -28,26 +27,30 @@ export default function Login() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const { email, password } = formData;
+        
+        const email = validator.normalizeEmail(formData.email.trim());
+        const password = formData.password;
 
         if (!email || !password) {
             return toast.error("All fields required");
         }
 
         if (!validator.isEmail(email)) {
-            return toast.error("Invalid email");
+            return toast.error("Invalid email format");
         }
 
         try {
             setLoading(true);
-            const { data } = await axiosInstance.post("/auth/login", formData);
+            const { data } = await axiosInstance.post("/auth/login", { email, password });
             dispatch(setUser(data.user));
-            toast.success(data.message);
+            toast.success(data.message || "Welcome back!");
             navigate("/chat");
         } catch (error) {
-            toast.error(
-                error.response?.data?.message || "Login failed"
-            );
+            if (error.response?.status === 403 && error.response?.data?.isVerified === false) {
+                toast.error("Please verify your email before logging in.");
+                return navigate("/verify-email", { state: { email } });
+            }
+            toast.error(error.response?.data?.message || "Login failed");
         } finally {
             setLoading(false);
         }
@@ -55,21 +58,14 @@ export default function Login() {
 
     return (
         <div className="min-h-screen bg-[#e5e7eb] dark:bg-[#111b21] flex items-center justify-center p-4 sm:p-8 relative font-sans">
-
-            {/* --- CLASSIC TOP BAND BACKGROUND --- */}
             <div className="absolute top-0 left-0 w-full h-[35vh] bg-indigo-600 dark:bg-[#202c33] shadow-md z-0 transition-colors duration-300"></div>
 
-            {/* --- MAIN CARD --- */}
             <div className="relative z-10 w-full max-w-5xl bg-white dark:bg-[#202c33] rounded-xl shadow-2xl flex overflow-hidden min-h-[550px] border border-transparent dark:border-slate-700 transition-colors duration-300">
-
-                {/* LEFT SIDE: PHOTOGRAPHIC BACKGROUND */}
                 <div
                     className="hidden md:flex md:w-1/2 bg-cover bg-center relative items-center justify-center"
                     style={{ backgroundImage: "url('https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=1000&auto=format&fit=crop')" }}
                 >
-                    {/* Dark/Color Overlay for text readability */}
                     <div className="absolute inset-0 bg-indigo-900/70 dark:bg-black/70 mix-blend-multiply"></div>
-
                     <div className="relative z-10 text-white text-center p-10 flex flex-col items-center">
                         <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-6 border border-white/30 shadow-lg">
                             <FiMessageSquare size={40} className="text-white" />
@@ -81,16 +77,11 @@ export default function Login() {
                     </div>
                 </div>
 
-                {/* RIGHT SIDE: THE FORM */}
                 <div className="w-full md:w-1/2 p-8 sm:p-12 lg:p-16 flex flex-col justify-center bg-white dark:bg-[#202c33]">
                     <Logo/>
                     <div className="mb-8">
-                        <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-2">
-                            Welcome Back
-                        </h1>
-                        <p className="text-slate-500 dark:text-slate-400">
-                            Sign in to continue chatting
-                        </p>
+                        <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 mb-2">Welcome Back</h1>
+                        <p className="text-slate-500 dark:text-slate-400">Sign in to continue chatting</p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-5">
@@ -109,13 +100,20 @@ export default function Login() {
                         <div className="relative">
                             <FiLock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={20} />
                             <input
-                                type="password"
+                                type={showPassword ? "text" : "password"}
                                 name="password"
                                 value={formData.password}
                                 onChange={handleChange}
                                 placeholder="Password"
-                                className="w-full h-14 bg-slate-50 dark:bg-[#111b21] border border-slate-200 dark:border-slate-700 focus:border-indigo-500 dark:focus:border-indigo-400 rounded-lg pl-12 pr-4 outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 transition-colors"
+                                className="w-full h-14 bg-slate-50 dark:bg-[#111b21] border border-slate-200 dark:border-slate-700 focus:border-indigo-500 dark:focus:border-indigo-400 rounded-lg pl-12 pr-12 outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 transition-colors"
                             />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                            >
+                                {showPassword ? <FiEyeOff size={20} /> : <FiEye size={20} />}
+                            </button>
                         </div>
 
                         <button
@@ -135,7 +133,6 @@ export default function Login() {
                         </p>
                     </div>
                 </div>
-
             </div>
         </div>
     );

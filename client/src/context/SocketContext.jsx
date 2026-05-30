@@ -8,6 +8,9 @@ export default function SocketProvider({ children }) {
     const user = useSelector((state) => state.auth.user);
     const [socket, setSocket] = useState(null);
     const [onlineUsers, setOnlineUsers] = useState([]);
+    
+    // Track Last Seen timestamps via Socket
+    const [lastSeenMap, setLastSeenMap] = useState({});
 
     useEffect(() => {
         if (!user) return;
@@ -26,6 +29,19 @@ export default function SocketProvider({ children }) {
 
         socketInstance.on("onlineUsers", (users) => {
             setOnlineUsers(users);
+        });
+
+        // Listen for standard disconnections to update Last Seen globally
+        socketInstance.on("userWentOffline", ({ userId, lastSeen }) => {
+            setLastSeenMap(prev => ({ ...prev, [userId]: lastSeen }));
+            setOnlineUsers(prev => prev.filter(id => id !== userId));
+        });
+
+        socketInstance.on("userCameOnline", ({ userId }) => {
+            setOnlineUsers(prev => {
+                if (!prev.includes(userId)) return [...prev, userId];
+                return prev;
+            });
         });
 
         socketInstance.on("disconnect", (reason) => {
@@ -54,7 +70,7 @@ export default function SocketProvider({ children }) {
     }, [user]);
 
     return (
-        <SocketContext.Provider value={{ socket, onlineUsers }}>
+        <SocketContext.Provider value={{ socket, onlineUsers, lastSeenMap }}>
             {children}
         </SocketContext.Provider>
     );

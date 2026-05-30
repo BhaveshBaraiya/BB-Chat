@@ -3,20 +3,32 @@ import { useDispatch, useSelector } from "react-redux";
 import useUsers from "../../hooks/useUsers";
 import { SocketContext } from "../../context/SocketContext";
 import { setSelectedChat, clearUnreadCount } from "../../redux/features/chatSlice";
+import { FiUserPlus } from "react-icons/fi";
 
-export default function UserList() {
+export default function UserList({searchTerm, onGoToFriends}) {
     const dispatch = useDispatch();
-    const unreadCounts = useSelector((state) => state.chat.unreadCounts);
-    // Grab the current logged-in user so we can check blocked arrays
+    const unreadCounts = useSelector((state) => state.chat.unreadCounts);    
     const currentUser = useSelector((state) => state.auth.user); 
+    const selectedChat = useSelector((state) => state.chat.selectedChat);
     
-    const { users: fetchedUsers } = useUsers();
+    const { users: fetchedUsers, loading } = useUsers();
     const [users, setUsers] = useState([]);
     const { socket, onlineUsers } = useContext(SocketContext);
 
     useEffect(() => {
-        if (fetchedUsers) setUsers(fetchedUsers);
-    }, [fetchedUsers]);
+        if (fetchedUsers) {            
+            if (searchTerm) {
+                const lowerCaseSearch = searchTerm.toLowerCase();
+                const filtered = fetchedUsers.filter(u => 
+                    u.fullName.toLowerCase().includes(lowerCaseSearch) || 
+                    u.email.toLowerCase().includes(lowerCaseSearch)
+                );
+                setUsers(filtered);
+            } else {
+                setUsers(fetchedUsers);
+            }
+        }
+    }, [fetchedUsers, searchTerm]);
 
     useEffect(() => {
         if (!socket) return;
@@ -27,14 +39,12 @@ export default function UserList() {
             );
         };
 
-        // Listen for getting blocked
         const handleBlockedMe = ({ blockerId }) => {
             setUsers((prev) => prev.map(u => 
                 u._id === blockerId ? { ...u, blockedUsers: [...(u.blockedUsers || []), currentUser._id] } : u
             ));
         };
 
-        // Listen for getting unblocked
         const handleUnblockedMe = ({ blockerId }) => {
             setUsers((prev) => prev.map(u => 
                 u._id === blockerId ? { ...u, blockedUsers: (u.blockedUsers || []).filter(id => id !== currentUser._id) } : u
@@ -52,27 +62,80 @@ export default function UserList() {
         };
     }, [socket, currentUser._id]);
 
+    useEffect(() => {
+        const handleRemoveUser = (e) => {
+            const removedUserId = e.detail;
+            setUsers((prev) => prev.filter((u) => u._id !== removedUserId));
+        };
+        window.addEventListener("removeUserFromList", handleRemoveUser);
+        return () => window.removeEventListener("removeUserFromList", handleRemoveUser);
+    }, []);
+
     const openChat = (chat) => {
         dispatch(setSelectedChat(chat));
         dispatch(clearUnreadCount(chat._id));
     };
 
+    if (loading) {
+        return (
+             <div className="flex justify-center p-6">
+                 <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+             </div>
+        )
+    }
+
+    if (users.length === 0 && !searchTerm) {
+        return (
+            <div className="flex flex-col items-center justify-center text-center p-6 mt-10">
+                <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mb-4">
+                    <FiUserPlus size={28} />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-800 mb-2">No friends yet</h3>
+                <p className="text-slate-500 text-sm mb-6 max-w-[200px]">
+                    Connect with people to start chatting securely.
+                </p>
+                <button 
+                    onClick={onGoToFriends}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2.5 rounded-lg transition-colors shadow-sm"
+                >
+                    Find Friends
+                </button>
+            </div>
+        );
+    }
+
+    if (users.length === 0 && searchTerm) {
+        return (
+            <div className="text-center p-6 text-slate-500 text-sm">
+                No chats match your search.
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-2">
             {users.map((user) => {
-                // Check mutual blocking status
                 const isBlockedByMe = currentUser?.blockedUsers?.includes(user._id);
                 const amIBlockedByThem = user?.blockedUsers?.includes(currentUser?._id);
                 const isBlocked = isBlockedByMe || amIBlockedByThem;
 
-                // Determine if we should show the real profile pic and online status
                 const showOnline = onlineUsers.includes(user._id) && !isBlocked;
                 const displayPic = isBlocked || !user.profilePic 
                     ? `https://ui-avatars.com/api/?name=${user.fullName}` 
                     : `${user.profilePic}?t=${Date.now()}`;
+                
+                const isActive = selectedChat?._id === user._id;
 
                 return (
-                    <div key={user._id} onClick={() => openChat(user)} className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-100 cursor-pointer transition">
+                    <div 
+                        key={user._id} 
+                        onClick={() => openChat(user)} 
+                        className={`flex items-center justify-between p-3 rounded-2xl cursor-pointer transition ${
+                            isActive 
+                            ? "bg-indigo-50 dark:bg-slate-800/80" 
+                            : "hover:bg-slate-100 dark:hover:bg-slate-800/40"
+                        }`}
+                    >
                         <div className="flex items-center gap-3">
                             <div className="relative">
                                 <img
@@ -81,12 +144,14 @@ export default function UserList() {
                                     alt="profile"
                                 />
                                 {showOnline && (
-                                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-slate-900" />
                                 )}
                             </div>
                             <div>
-                                <h3 className="font-medium text-slate-800">{user.fullName}</h3>
-                                <p className={`text-sm ${showOnline ? "text-green-500 font-medium" : "text-slate-500"}`}>
+                                <h3 className="font-medium dark:text-indigo-400 text-slate-800 dark:text-slate-200">
+                                    {user.fullName}
+                                </h3>
+                                <p className={`text-sm ${showOnline ? "text-green-500 font-medium" : "text-slate-500 dark:text-slate-400"}`}>
                                     {showOnline ? "Online" : "Offline"}
                                 </p>
                             </div>

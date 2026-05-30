@@ -87,8 +87,6 @@ export const updateProfile = async (req, res) => {
         }
 
         await user.save();
-
-        // 🚀 EMIT REALTIME UPDATE
         const io = getIO();
 
         io.emit("profile:updated", {
@@ -117,8 +115,7 @@ export const blockUser = async (req, res) => {
             currentUser.blockedUsers.push(userId);
             await currentUser.save();
         }
-
-        // 🚀 INSTANT SYNC: Tell the other user they got blocked
+                
         const io = getIO();
         const receiverSocketId = userSocketMap.get(userId);
         if (receiverSocketId) {
@@ -164,19 +161,15 @@ export const blocked = async (req, res) => {
     }
 };
 
-// --- NEW MUTE CONTROLLERS ---
-
 export const toggleMuteChat = async (req, res) => {
     try {
         const { userId } = req.body;
         const myId = req.user._id;
-        
-        // Check if the route called was 'mute-chat' or 'unmute-chat'
         const action = req.path.includes('unmute') ? 'unmute' : 'mute';
 
         const update = action === 'mute'
-            ? { $addToSet: { mutedChats: userId } } // Adds to array if not there
-            : { $pull: { mutedChats: userId } };    // Removes from array
+            ? { $addToSet: { mutedChats: userId } }
+            : { $pull: { mutedChats: userId } };
 
         const updatedUser = await UserModel.findByIdAndUpdate(
             myId, 
