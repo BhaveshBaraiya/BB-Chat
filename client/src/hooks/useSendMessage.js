@@ -51,6 +51,8 @@ export default function useSendMessage() {
                 formData,
                 { headers: { "Content-Type": "multipart/form-data" } }
             );
+            
+            const actualMessage = data.message || data;
 
             if (isTextOnly) {
                 dispatch(removeMessage(tempId));
@@ -59,7 +61,7 @@ export default function useSendMessage() {
             dispatch(addMessage(data.message));
             
             if (socket) {
-                socket.emit("sendMessage", data.message);
+                socket.emit("sendMessage", actualMessage);
             }
             
             if (!isTextOnly) {

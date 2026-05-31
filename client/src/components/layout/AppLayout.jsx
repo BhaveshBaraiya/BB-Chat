@@ -1,6 +1,7 @@
 import { useState, useContext, useCallback, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import axiosInstance from "../../services/axios";
+import toast from "react-hot-toast";
 
 import { SocketContext } from "../../context/SocketContext";
 import { CallContext } from "../../context/CallContext";
@@ -23,23 +24,47 @@ export default function AppLayout() {
 
   const call = useSelector((state) => state.call);
   const selectedChatRedux = useSelector((state) => state.chat.selectedChat);
+  const unreadCounts = useSelector((state) => state.chat.unreadCounts || {});
 
   const { sendMessage } = useSendMessage();
   useListenMessages();
 
   const [showProfile, setShowProfile] = useState(false);
   const [activeTab, setActiveTab] = useState("chats");
+  
   const [pendingCount, setPendingCount] = useState(0);
+  const [hasNewStatus, setHasNewStatus] = useState(false);
+  const [hasNewCommunityMsg, setHasNewCommunityMsg] = useState(false);
+
+  const hasUnreadChats = Object.values(unreadCounts).some(count => count > 0);
 
   useEffect(() => {
     if (!socket) return;
     
-    const handleNewRequest = () => {
+    const handleNewRequest = (data) => {
         setPendingCount(prev => prev + 1);
+        toast.success(`${data.fullName || "Someone"} sent you a friend request!`, { icon: '👋', duration: 4000 });
     };
 
+    const handleRequestAccepted = (data) => {
+        toast.success(`${data.fullName || "Someone"} accepted your friend request!`, { icon: '🤝', duration: 4000 });
+    };
+
+    const handleNewStatus = () => setHasNewStatus(true);
+    const handleNewCommunity = () => setHasNewCommunityMsg(true);
+
     socket.on("friend:request_received", handleNewRequest);
-    return () => socket.off("friend:request_received", handleNewRequest);
+    socket.on("friend:request_accepted", handleRequestAccepted);
+    socket.on("status:new", handleNewStatus);
+    
+    socket.on("newCommunityMessage", handleNewCommunity); 
+    
+    return () => {
+        socket.off("friend:request_received", handleNewRequest);
+        socket.off("friend:request_accepted", handleRequestAccepted);
+        socket.off("status:new", handleNewStatus);
+        socket.off("newCommunityMessage", handleNewCommunity);
+    };
   }, [socket]);
 
   useEffect(() => {
@@ -57,6 +82,8 @@ export default function AppLayout() {
   const handleTabChange = (tab) => {
       setActiveTab(tab);
       if (tab === "friends") setPendingCount(0);
+      if (tab === "status") setHasNewStatus(false);
+      if (tab === "communities") setHasNewCommunityMsg(false);
   };
 
   const cleanupCall = useCallback(() => {
@@ -77,7 +104,6 @@ export default function AppLayout() {
 
   useEffect(() => {
     if (!peerRef?.current) return;
-
     peerRef.current.on("call", (incomingCall) => {
       connectionRef.current = incomingCall;
     });
@@ -97,9 +123,7 @@ export default function AppLayout() {
       }));
     };
 
-    const accepted = () => {
-      dispatch(setCallState({ active: true }));
-    };
+    const accepted = () => dispatch(setCallState({ active: true }));
 
     socket.on("call:incoming", incoming);
     socket.on("call:accepted", accepted);
@@ -152,13 +176,27 @@ export default function AppLayout() {
       <CallOverlay onEndCall={endCall} />
 
       <div className={`lg:hidden shrink-0 h-[65px] border-b bg-white ${selectedChatRedux ? "hidden" : "block"}`}>
-        <LeftRail activeTab={activeTab} setActiveTab={handleTabChange} pendingCount={pendingCount} />
+        <LeftRail 
+            activeTab={activeTab} 
+            setActiveTab={handleTabChange} 
+            pendingCount={pendingCount} 
+            hasUnreadChats={hasUnreadChats}
+            hasNewStatus={hasNewStatus}
+            hasNewCommunityMsg={hasNewCommunityMsg}
+        />
       </div>
 
       <div className="flex-1 flex overflow-hidden">
         
         <div className="hidden lg:block shrink-0">
-          <LeftRail activeTab={activeTab} setActiveTab={handleTabChange} pendingCount={pendingCount} />
+          <LeftRail 
+            activeTab={activeTab} 
+            setActiveTab={handleTabChange} 
+            pendingCount={pendingCount}
+            hasUnreadChats={hasUnreadChats}
+            hasNewStatus={hasNewStatus}
+            hasNewCommunityMsg={hasNewCommunityMsg}
+          />
         </div>
 
         <div className={`w-full md:w-[350px] bg-white shrink-0 ${selectedChatRedux ? "hidden lg:block" : "block"}`}>

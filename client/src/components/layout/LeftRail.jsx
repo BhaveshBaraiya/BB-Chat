@@ -5,17 +5,22 @@ import {
   FiSettings,
   FiUserPlus
 } from "react-icons/fi";
-import { useSelector } from "react-redux";
 
-export default function LeftRail({ activeTab, setActiveTab, pendingCount }) {
-  const authUser = useSelector((state) => state.auth.user);
+export default function LeftRail({ 
+    activeTab, 
+    setActiveTab, 
+    pendingCount, 
+    hasUnreadChats, 
+    hasNewStatus, 
+    hasNewCommunityMsg 
+}) {
 
   const tabs = [
-    { id: "chats", icon: <FiMessageSquare /> },
-    { id: "status", icon: <FiCircle /> },
-    { id: "friends", icon: <FiUserPlus /> },
-    { id: "communities", icon: <FiUsers /> },
-    { id: "settings", icon: <FiSettings /> }
+    { id: "chats", icon: <FiMessageSquare />, hasDot: hasUnreadChats },
+    { id: "status", icon: <FiCircle />, hasDot: hasNewStatus },
+    { id: "friends", icon: <FiUserPlus />, hasDot: pendingCount > 0 },
+    { id: "communities", icon: <FiUsers />, hasDot: hasNewCommunityMsg },
+    { id: "settings", icon: <FiSettings />, hasDot: false }
   ];
 
   return (
@@ -41,7 +46,7 @@ export default function LeftRail({ activeTab, setActiveTab, pendingCount }) {
           >
             {tab.icon}
             
-            {tab.id === "friends" && pendingCount > 0 && (
+            {tab.hasDot && activeTab !== tab.id && (
                 <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#202C33]"></span>
             )}
           </button>

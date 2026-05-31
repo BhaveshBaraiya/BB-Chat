@@ -42,7 +42,16 @@ const messageSchema = new mongoose.Schema( {
             type:Boolean,
             default:false
         },
-
+        receiverId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            default: null // 
+        },
+        communityId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Community",
+            default: null
+        },
         replyTo:{
             type:mongoose.Schema.Types.ObjectId,
             ref:"Message",

@@ -2,13 +2,14 @@ import { useContext, useState, useRef, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { FiArrowLeft, FiPhone, FiVideo, FiMoreVertical, FiSmile, FiPaperclip, FiSend, FiMic, FiSquare, FiX, FiPause, FiPlay, FiMessageSquare, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import EmojiPicker from "emoji-picker-react";
+import { FiLock } from "react-icons/fi";
 
 import axiosInstance from "../../services/axios";
 import toast from "react-hot-toast";
 
 import { SocketContext } from "../../context/SocketContext";
 import { CallContext } from "../../context/CallContext";
-import { setSelectedChat, clearUnreadCount, setMessages } from "../../redux/features/chatSlice";
+import { setSelectedChat, clearUnreadCount, setMessages, updateMessageStatus } from "../../redux/features/chatSlice";
 import { updateUser } from "../../redux/features/authSlice";
 import useMessages from "../../hooks/useMessages";
 import useSendMessage from "../../hooks/useSendMessage";
@@ -23,6 +24,8 @@ export default function ChatWindow() {
     const selectedChat = useSelector((state) => state.chat.selectedChat);
     const typingUsers = useSelector((state) => state.chat.typingUsers);    
     const user = useSelector((state) => state.auth.user);
+
+    const isGroup = selectedChat?.isGroup;
 
     const { socket, onlineUsers, lastSeenMap } = useContext(SocketContext);
     const { initiateCall } = useContext(CallContext);
@@ -175,14 +178,25 @@ export default function ChatWindow() {
         return () => socket.off("userCameOnline", handleUserOnline);
     }, [socket, selectedChat, user, dispatch, messages]);
 
+
     useEffect(() => {
-        if (!socket || !selectedChat) return;
-        const unseenMessages = messages.filter(msg => msg.senderId === selectedChat._id && !msg.seen);
-        if (!unseenMessages.length) return;
-        unseenMessages.forEach(msg => socket.emit("messageSeen", { messageId: msg._id, senderId: msg.senderId }));
-        const updatedMessages = messages.map(msg => msg.senderId === selectedChat._id && !msg.seen ? { ...msg, seen: true, delivered: true } : msg);
-        dispatch(setMessages(updatedMessages));
-    }, [messages, selectedChat, socket, dispatch]);
+        if (!socket || !selectedChat || !user) return;
+        
+        const unseenMessages = messages.filter(msg => {
+            const isFromMe = (msg.senderId?._id || msg.senderId)?.toString() === user._id.toString();
+            return !isFromMe && !msg.seen;
+        });
+
+        if (unseenMessages.length === 0) return;
+
+        unseenMessages.forEach(msg => {        
+            dispatch(updateMessageStatus({ id: msg._id, status: 'seen' }));
+            socket.emit("messageSeen", { 
+                messageId: msg._id, 
+                senderId: (msg.senderId?._id || msg.senderId)?.toString() 
+            });
+        });
+    }, [messages, selectedChat, socket, user, dispatch]);
 
     useEffect(() => {
         if (!selectedChat) return;
@@ -269,14 +283,11 @@ export default function ChatWindow() {
                     <button onClick={async () => {
                         toast.dismiss(t.id);
                         try {
-                            // 1. Unfriend and clear chat
                             await axiosInstance.post("/friends/unfriend", { targetId: selectedChat._id }).catch(() => {});
+                            
                             await axiosInstance.delete(`/messages/clear/${selectedChat._id}`).catch(() => {});
-                            
-                            // 2. Clear Redux state
+
                             dispatch(setMessages([]));
-                            
-                            // 3. ONLY remove from YOUR local list by dispatching the event
                             window.dispatchEvent(new CustomEvent("removeUserFromList", { detail: selectedChat._id }));
                             
                             dispatch(setSelectedChat(null));
@@ -340,23 +351,28 @@ export default function ChatWindow() {
                                     {selectedChat.fullName}
                                     {isChatMuted && <span className="ml-2 text-slate-400 dark:text-slate-500 text-xs" title="Muted">🔕</span>}
                                 </h2>
-                                <p className={`text-xs ${isOnline ? "text-green-500" : "text-slate-400"}`}>
-                                    {displayStatus}
+                                <p className={`text-xs ${isOnline && !isGroup ? "text-green-500" : "text-slate-400"}`}>
+                                    {isGroup ? `${selectedChat.members?.length || 0} members` : displayStatus}
                                 </p>
                             </div>
                         </div>
                         <div className="flex gap-2 sm:gap-3 text-slate-600 dark:text-slate-200 items-center">
-                            <button onClick={() => handleInitiateCall("audio")} className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition"><FiPhone size={18} /></button>
-                            <button onClick={() => handleInitiateCall("video")} className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition"><FiVideo size={18} /></button>
-                            <button onClick={() => setShowMenu(!showMenu)} className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition"><FiMoreVertical size={18} /></button>
-                            {showMenu && <MoreOptionsMenu onClose={() => setShowMenu(false)} onClearChat={handleClearChat} onDeleteUser={handleDeleteUser} onBlockUser={handleBlockUser} onSearch={() => { setShowSearchBar(true); setShowMenu(false); }} onMute={handleMuteChat} isMuted={isChatMuted} />}
+    {/* HIDE CALL BUTTONS IF IT'S A GROUP */}
+    {!isGroup && (
+        <>
+            <button onClick={() => handleInitiateCall("audio")} className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition"><FiPhone size={18} /></button>
+            <button onClick={() => handleInitiateCall("video")} className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition"><FiVideo size={18} /></button>
+        </>
+    )}
+    <button onClick={() => setShowMenu(!showMenu)} className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition"><FiMoreVertical size={18} /></button>
+    {showMenu && <MoreOptionsMenu onClose={() => setShowMenu(false)} onClearChat={handleClearChat} onDeleteUser={handleDeleteUser} onBlockUser={handleBlockUser} onSearch={() => { setShowSearchBar(true); setShowMenu(false); }} onMute={handleMuteChat} isMuted={isChatMuted} />}
                         </div>
                     </>
                 )}
             </div>
 
-            {/* MESSAGES OR SKELETON */}
-            <div className="flex-1 overflow-y-auto relative bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 bg-repeat relative" style={{
+            {/* MESSAGES */}
+            <div className="flex-1 overflow-y-auto relative dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 bg-repeat relative" style={{
                 backgroundImage: `url('/assets/theme-bg.jpg')`,
             }}>
                 {loading ? (
@@ -364,33 +380,50 @@ export default function ChatWindow() {
                         <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
                     </div>
                 ) : (
-                <div className="space-y-2">
-                    {filteredMessages.map((message, index) => {
-                        const currentDate = new Date(message.createdAt).toDateString();
-                        const previousDate = index > 0 ? new Date(filteredMessages[index - 1].createdAt).toDateString() : null;
-                        return (
-                            <div key={message._id} className="px-2">
-                                {currentDate !== previousDate && (
-                                    <div className="text-center my-4">
-                                        <span className="bg-slate-200 dark:bg-slate-700 px-3 py-1 rounded-full text-xs text-slate-600 dark:text-slate-300 shadow-sm">{currentDate}</span>
-                                    </div>
-                                )}
-                                <MessageBubble
-                                    messageObj={message}
-                                    message={message.text}
-                                    own={(message.senderId?._id || message.senderId)?.toString() === user._id.toString()}
-                                    time={new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                    delivered={iBlocked && (message.senderId?._id || message.senderId)?.toString() === user._id.toString() ? false : message.delivered}
-                                    seen={iBlocked && (message.senderId?._id || message.senderId)?.toString() === user._id.toString() ? false : message.seen}
-                                    onImageClick={(images, clickedIndex) => {
-                                        setLightboxData({ isOpen: true, images: images, currentIndex: clickedIndex });
-                                    }}
-                                />
-                            </div>
-                        );
-                    })}
+                    <div className="space-y-2 flex flex-col min-h-full">
+                    
+                    {filteredMessages.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center p-6 animate-in fade-in duration-300">                
+                        <div className="bg-[#FFEECD] dark:bg-[#1E2A30] text-[#54656F] dark:text-[#8696A0] text-[12.5px] font-medium px-4 py-3 rounded-md max-w-sm text-center flex flex-col items-center gap-1.5">
+                            <FiLock size={14} className="mb-0.5 text-slate-500 dark:text-slate-400" />
+                            <p>
+                                Messages and calls are end-to-end encrypted. No one outside of this chat, not even ChatApp, can read or listen to them.
+                            </p>
+                        </div>
+                        
+                        <div className="mt-4 bg-white dark:bg-[#202C33] text-[#54656F] dark:text-slate-400 text-xs px-4 py-1.5 rounded-md font-medium">
+                            You started a conversation with {selectedChat.fullName}
+                        </div>
+                    </div>
+                    ) : (
+                        filteredMessages.map((message, index) => {
+                            const currentDate = new Date(message.createdAt).toDateString();
+                            const previousDate = index > 0 ? new Date(filteredMessages[index - 1].createdAt).toDateString() : null;
+                            return (
+                                <div key={message._id} className="px-2">
+                                    {currentDate !== previousDate && (
+                                        <div className="text-center my-4">
+                                            <span className="bg-slate-200 dark:bg-slate-700 px-3 py-1 rounded-full text-xs text-slate-600 dark:text-slate-300 shadow-sm">{currentDate}</span>
+                                        </div>
+                                    )}
+                                    <MessageBubble
+                                        messageObj={message}
+                                        message={message.text}
+                                        own={(message.senderId?._id || message.senderId)?.toString() === user._id.toString()}
+                                        time={new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                        delivered={iBlocked && (message.senderId?._id || message.senderId)?.toString() === user._id.toString() ? false : message.delivered}
+                                        seen={iBlocked && (message.senderId?._id || message.senderId)?.toString() === user._id.toString() ? false : message.seen}
+                                        onImageClick={(images, clickedIndex) => {
+                                            setLightboxData({ isOpen: true, images: images, currentIndex: clickedIndex });
+                                        }}
+                                    />
+                                </div>
+                            );
+                        })
+                    )}
+                    
                     {typingUsers.includes(selectedChat._id) && !iBlocked && <TypingIndicator />}
-                    <div ref={messagesEndRef} className="h-4" /> 
+                    <div ref={messagesEndRef} className="h-4 mt-auto" /> 
                 </div>
                 )}
             </div>

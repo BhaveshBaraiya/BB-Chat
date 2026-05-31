@@ -211,10 +211,66 @@ export const logoutUser = async (req, res) => {
                 : "lax"
     }
 );
-
     res.status(200).json({
         success: true,
         message: "Logged out"
     });
+};
 
+export const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        const user = await UserModel.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        user.verificationCode = otp;
+        user.verificationCodeExpires = Date.now() + 15 * 60 * 1000;
+        await user.save();
+
+        await sendVerificationEmail(email, otp);
+
+        res.status(200).json({ success: true, message: "OTP sent to your email" });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const resetPassword = async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+        const user = await UserModel.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        if (user.verificationCode !== otp) {
+            return res.status(400).json({ success: false, message: "Invalid verification code" });
+        }
+
+        if (user.verificationCodeExpires < Date.now()) {
+            return res.status(400).json({ success: false, message: "Verification code has expired" });
+        }
+
+        const isStrong = validator.isStrongPassword(newPassword, {
+            minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1
+        });
+
+        if (!isStrong) {
+            return res.status(400).json({ success: false, message: "Password is not strong enough" });
+        }
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        user.verificationCode = null;
+        user.verificationCodeExpires = null;
+        await user.save();
+
+        res.status(200).json({ success: true, message: "Password reset successful. You can now login." });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 };

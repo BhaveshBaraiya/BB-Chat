@@ -8,7 +8,8 @@ import {
     unblockUser, 
     blockUser, 
     toggleMuteChat, 
-    updateNotificationSettings,    
+    updateNotificationSettings,
+    updatePrivacySettings
 } from "../controllers/userController.js";
 import upload from "../middleware/upload.js";
 
@@ -28,5 +29,7 @@ router.post("/unmute-chat", protect, toggleMuteChat);
 
 // Global notification toggle
 router.put("/settings/notifications", protect, updateNotificationSettings);
+
+router.put("/settings/privacy", protect, updatePrivacySettings);
 
 export default router;

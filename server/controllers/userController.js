@@ -209,3 +209,39 @@ export const updateNotificationSettings = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
+export const updatePrivacySettings = async (req, res) => {
+    try {
+        const { showOnlineStatus, hiddenStatusUsers } = req.body;
+        const userId = req.user._id;
+        
+        const updateData = {};
+        
+        if (showOnlineStatus !== undefined) {
+            updateData.showOnlineStatus = showOnlineStatus;
+        }
+        
+        if (hiddenStatusUsers !== undefined) {
+            updateData.hiddenStatusUsers = hiddenStatusUsers;
+        }
+        
+        const updatedUser = await UserModel.findByIdAndUpdate(
+            userId,
+            { $set: updateData },
+            { new: true }
+        ).select("-password");
+
+        if (!updatedUser) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        res.status(200).json({ 
+            success: true, 
+            user: updatedUser 
+        });
+
+    } catch (error) {
+        console.error("Privacy Update Error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};

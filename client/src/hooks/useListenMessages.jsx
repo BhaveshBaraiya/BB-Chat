@@ -22,8 +22,8 @@ export default function useListenMessages() {
 
     useEffect(() => {
         if (!socket || !user) return;
-
         const handleNewMessage = (newMessage) => {
+            if (newMessage.communityId) return;
             if (lastMessageId.current === newMessage._id) return;
             lastMessageId.current = newMessage._id;
 
@@ -31,9 +31,9 @@ export default function useListenMessages() {
 
             if (selectedChat && selectedChat._id === senderIdString) {
                 dispatch(addMessage(newMessage));
-                socket.emit("messageSeen", { messageId: newMessage._id, senderId: senderIdString });
             } else {
                 dispatch(incrementUnreadCount(senderIdString));                
+                
                 const isGlobalMuted = user.globalNotificationsMuted === true;
                 const isChatMuted = user.mutedChats?.includes(senderIdString);
                 
@@ -44,54 +44,70 @@ export default function useListenMessages() {
 
                     const handleToastClick = (toastId) => {
                         toast.dismiss(toastId);
-                        dispatch(setSelectedChat({
-                            _id: senderIdString,
-                            fullName: displayName,
-                            profilePic: displayPic
-                        }));
+                        dispatch(setSelectedChat({ _id: senderIdString, fullName: displayName, profilePic: displayPic }));
                     };
 
                     toast.custom((t) => (
-                        <div
-                            className={`${
-                                t.visible ? 'animate-enter' : 'animate-leave'
-                            } max-w-sm w-full bg-white dark:bg-slate-800 shadow-2xl rounded-2xl pointer-events-auto flex ring-1 ring-black/5 dark:ring-white/10 overflow-hidden cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-colors`}
-                            onClick={() => handleToastClick(t.id)} 
-                        >
+                        <div onClick={() => handleToastClick(t.id)} className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-sm w-full bg-white dark:bg-slate-800 shadow-2xl rounded-2xl pointer-events-auto flex ring-1 ring-black/5 dark:ring-white/10 overflow-hidden cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-colors`}>
                             <div className="flex-1 w-0 p-4">
                                 <div className="flex items-start">
                                     <div className="flex-shrink-0 pt-0.5 relative">
-                                        <img
-                                            className="h-10 w-10 rounded-full object-cover bg-slate-100 dark:bg-slate-700"
-                                            src={displayPic}
-                                            alt={displayName}
-                                        />
-                                        <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                                            <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
-                                        </span>
+                                        <img className="h-10 w-10 rounded-full object-cover bg-slate-100 dark:bg-slate-700" src={displayPic} alt="profile" />
                                     </div>
                                     <div className="ml-3 flex-1 overflow-hidden">
-                                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
-                                            {displayName}
-                                        </p>
-                                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 truncate">
-                                            {newMessage.text || (newMessage.images?.length > 0 ? "📷 Sent an image" : "Sent an attachment")}
-                                        </p>
+                                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{displayName}</p>
+                                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 truncate">{newMessage.text || "Sent an attachment"}</p>
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex border-l border-slate-100 dark:border-slate-700">
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation(); 
-                                        toast.dismiss(t.id);
-                                    }}
-                                    className="w-full border border-transparent p-4 flex items-center justify-center text-sm font-medium text-slate-400 hover:text-slate-500 dark:text-slate-500 dark:hover:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-600 focus:outline-none transition-colors"
-                                    title="Dismiss"
-                                >
-                                    ✕
-                                </button>
+                        </div>
+                    ), { duration: 5000, position: 'top-center' });
+                }
+            }
+        };
+
+        const handleNewCommunityMessage = (newMessage) => {
+            if (lastMessageId.current === newMessage._id) return;
+            lastMessageId.current = newMessage._id;
+
+            const communityObj = typeof newMessage.communityId === 'object' ? newMessage.communityId : null;
+            const commIdString = communityObj ? communityObj._id : newMessage.communityId;
+            
+            if (selectedChat && selectedChat.isGroup && selectedChat._id === commIdString) {
+                dispatch(addMessage(newMessage));
+            } else {
+                dispatch(incrementUnreadCount(commIdString)); 
+
+                const isGlobalMuted = user.globalNotificationsMuted === true;
+                const isChatMuted = user.mutedChats?.includes(commIdString);
+
+                if (!isGlobalMuted && !isChatMuted) {
+                    const senderName = newMessage.senderId?.fullName || "A member";
+                    const commName = communityObj?.name || "Community";
+                    const commAvatar = communityObj?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(commName)}`;
+
+                    const handleToastClick = (toastId) => {
+                        toast.dismiss(toastId);
+                        dispatch(setSelectedChat({ _id: commIdString, fullName: commName, profilePic: commAvatar, isGroup: true }));
+                    };
+
+                    toast.custom((t) => (
+                        <div onClick={() => handleToastClick(t.id)} className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-sm w-full bg-white dark:bg-slate-800 shadow-2xl rounded-2xl pointer-events-auto flex ring-1 ring-black/5 dark:ring-white/10 overflow-hidden cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-colors`}>
+                            <div className="flex-1 w-0 p-4">
+                                <div className="flex items-start">
+                                    <div className="flex-shrink-0 pt-0.5 relative">
+                                        <img className="h-10 w-10 rounded-full object-cover bg-slate-100 dark:bg-slate-700" src={commAvatar} alt="community" />
+                                        <span className="absolute -bottom-1 -right-1 bg-indigo-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-800 shadow-sm">
+                                            {senderName.charAt(0).toUpperCase()}
+                                        </span>
+                                    </div>
+                                    <div className="ml-3 flex-1 overflow-hidden">
+                                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{commName}</p>
+                                        <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400 truncate">
+                                            <span className="font-semibold text-indigo-500">{senderName}:</span> {newMessage.text || "Sent an attachment"}
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     ), { duration: 5000, position: 'top-center' });
@@ -102,30 +118,28 @@ export default function useListenMessages() {
         const handleReaction = (message) => dispatch(updateMessageReaction(message));
         const handleDeleted = (messageId) => dispatch(markMessageDeletedForAll(messageId));
         const handleSeen = ({ messageId }) => dispatch(updateMessageStatus({ id: messageId, status: 'seen' }));
-
-        // ADDED TYPING LISTENERS
-        const handleTypingStart = ({ userId }) => {
-            dispatch(addTypingUser(userId));
-        };
-
-        const handleTypingStop = ({ userId }) => {
-            dispatch(removeTypingUser(userId));
-        };
+        const handleTypingStart = ({ userId }) => dispatch(addTypingUser(userId));
+        const handleTypingStop = ({ userId }) => dispatch(removeTypingUser(userId));
+        const handleDelivered = ({ messageId }) => dispatch(updateMessageStatus({ id: messageId, status: 'delivered' }));
 
         socket.on("newMessage", handleNewMessage);
+        socket.on("newCommunityMessage", handleNewCommunityMessage);
         socket.on("messageReaction", handleReaction);
         socket.on("messageDeletedForAll", handleDeleted);
         socket.on("messageSeen", handleSeen); 
         socket.on("typing:start", handleTypingStart);
         socket.on("typing:stop", handleTypingStop);
+        socket.on("messageDelivered", handleDelivered);
 
         return () => {
             socket.off("newMessage", handleNewMessage);
+            socket.off("newCommunityMessage", handleNewCommunityMessage);
             socket.off("messageReaction", handleReaction);
             socket.off("messageDeletedForAll", handleDeleted);
             socket.off("messageSeen", handleSeen);
             socket.off("typing:start", handleTypingStart);
             socket.off("typing:stop", handleTypingStop);
+            socket.off("messageDelivered", handleDelivered);
         };
     }, [socket, dispatch, selectedChat, user]);
 }

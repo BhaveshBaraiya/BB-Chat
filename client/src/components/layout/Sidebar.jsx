@@ -4,6 +4,7 @@ import { FiSearch } from "react-icons/fi";
 import SettingsContent from "../chat/SettingsContent";
 import StatusContent from "../chat/StatusContent";
 import FriendsContent from "../chat/FriendsContent";
+import CommunitiesContent from "../chat/CommunitiesContent";
 
 export default function Sidebar({ activeTab, setActiveTab }) {
     const [localChatFilter, setLocalChatFilter] = useState(""); 
@@ -15,6 +16,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
                 <h2 className="text-2xl font-semibold text-[#111B21]">
                     {activeTab === "chats" && "Chats"}
                     {activeTab === "friends" && "Friends"}
+                    {activeTab === "communities" && "Communities"}
                     {activeTab === "status" && "Status"}
                     {activeTab === "settings" && "Settings"}
                 </h2>
@@ -43,6 +45,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
 
             {activeTab === "friends" && <FriendsContent />}
             {activeTab === "status" && <StatusContent />}
+            {activeTab === "communities" && <CommunitiesContent />}
             {activeTab === "settings" && <SettingsContent />}
             
         </div>

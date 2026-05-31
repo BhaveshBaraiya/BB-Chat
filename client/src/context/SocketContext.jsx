@@ -6,16 +6,17 @@ export const SocketContext = createContext();
 
 export default function SocketProvider({ children }) {
     const user = useSelector((state) => state.auth.user);
+    const userId = user?._id;
+    
     const [socket, setSocket] = useState(null);
     const [onlineUsers, setOnlineUsers] = useState([]);
-    
-    // Track Last Seen timestamps via Socket
     const [lastSeenMap, setLastSeenMap] = useState({});
 
     useEffect(() => {
-        if (!user) return;
+        if (!userId) return;
+        
         const socketInstance = io(import.meta.env.VITE_SERVER_URL || "http://localhost:5000", {
-            query: { userId: user._id },
+            query: { userId },
             transports: ["websocket", "polling"],
             withCredentials: true,
             reconnection: true,
@@ -31,15 +32,14 @@ export default function SocketProvider({ children }) {
             setOnlineUsers(users);
         });
 
-        // Listen for standard disconnections to update Last Seen globally
         socketInstance.on("userWentOffline", ({ userId, lastSeen }) => {
             setLastSeenMap(prev => ({ ...prev, [userId]: lastSeen }));
             setOnlineUsers(prev => prev.filter(id => id !== userId));
         });
 
-        socketInstance.on("userCameOnline", ({ userId }) => {
+        socketInstance.on("userCameOnline", ({ userId: onlineId }) => {
             setOnlineUsers(prev => {
-                if (!prev.includes(userId)) return [...prev, userId];
+                if (!prev.includes(onlineId)) return [...prev, onlineId];
                 return prev;
             });
         });
@@ -67,7 +67,7 @@ export default function SocketProvider({ children }) {
             document.removeEventListener("visibilitychange", handleVisibilityChange);
             socketInstance.disconnect();
         };
-    }, [user]);
+    }, [userId]);
 
     return (
         <SocketContext.Provider value={{ socket, onlineUsers, lastSeenMap }}>

@@ -77,6 +77,7 @@ const userSchema = new mongoose.Schema(
                 default: []
             }
         ],
+        hiddenStatusUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     },
     {
         timestamps: true

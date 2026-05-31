@@ -19,8 +19,12 @@ export default function SettingsContent() {
     const [blockedUsers, setBlockedUsers] = useState([]);
     const [loadingBlocked, setLoadingBlocked] = useState(false);
     
+    const [friends, setFriends] = useState([]);
+    const [loadingFriends, setLoadingFriends] = useState(false);
+    const [showHideStatusList, setShowHideStatusList] = useState(false);
+    const [hiddenFrom, setHiddenFrom] = useState(user?.hiddenStatusUsers || []);
+    
     const isGlobalMuted = user?.globalNotificationsMuted || false;
-    // Assume defaults to true if not set
     const isOnlineStatusVisible = user?.showOnlineStatus !== false; 
 
     const toggleTheme = () => {
@@ -38,19 +42,17 @@ export default function SettingsContent() {
         }
     };
 
-    // New Global Online Status Toggle
     const toggleOnlineStatus = async () => {
         try {
             const newState = !isOnlineStatusVisible;
             await axiosInstance.put("/users/settings/privacy", { showOnlineStatus: newState });
             dispatch(updateUser({ showOnlineStatus: newState }));
             
-            // Immediately notify socket to broadcast the update
             if (socket) {
                 socket.emit("updatePrivacy", { showOnlineStatus: newState });
             }
             
-            toast.success(newState ? "Online status is now visible to others" : "Online status is now hidden");
+            toast.success(newState ? "Online status is now visible" : "Online status is hidden");
         } catch (error) {
             toast.error("Failed to update privacy settings");
         }
@@ -58,20 +60,29 @@ export default function SettingsContent() {
     
     useEffect(() => {
         if (active === "privacy") {
-            const fetchBlockedUsers = async () => {
+            const fetchPrivacyData = async () => {
                 try {
                     setLoadingBlocked(true);
-                    const { data } = await axiosInstance.get("/users/blocked");
-                    setBlockedUsers(data);
+                    setLoadingFriends(true);
+                    
+                    const [blockedRes, friendsRes] = await Promise.all([
+                        axiosInstance.get("/users/blocked"),
+                        axiosInstance.get("/friends/list")
+                    ]);
+                    
+                    setBlockedUsers(blockedRes.data);
+                    setFriends(friendsRes.data.friends || []);
                 } catch (error) {
-                    console.error("Failed to fetch blocked users");
+                    console.error("Failed to fetch privacy data");
                 } finally {
                     setLoadingBlocked(false);
+                    setLoadingFriends(false);
                 }
             };
-            fetchBlockedUsers();
+            fetchPrivacyData();
+            setHiddenFrom(user?.hiddenStatusUsers || []);
         }
-    }, [active]);
+    }, [active, user?.hiddenStatusUsers]);
 
     const handleUnblock = async (blockedUserId) => {
         try {
@@ -80,6 +91,23 @@ export default function SettingsContent() {
             toast.success("User unblocked");
         } catch (error) {
             toast.error("Failed to unblock user");
+        }
+    };
+
+    const toggleHideFrom = async (friendId) => {
+        const isCurrentlyHidden = hiddenFrom.includes(friendId);
+        const newHiddenList = isCurrentlyHidden 
+            ? hiddenFrom.filter(id => id !== friendId)
+            : [...hiddenFrom, friendId];
+        
+        setHiddenFrom(newHiddenList);
+        
+        try {
+            await axiosInstance.put("/users/settings/privacy", { hiddenStatusUsers: newHiddenList });
+            dispatch(updateUser({ hiddenStatusUsers: newHiddenList }));
+        } catch (error) {            
+            setHiddenFrom(hiddenFrom);
+            toast.error("Failed to update status privacy");
         }
     };
 
@@ -103,7 +131,6 @@ export default function SettingsContent() {
                             <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1 mb-3">General</h3>
                             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
                                 
-                                {/* New Online Status Toggle */}
                                 <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center text-slate-700 dark:text-slate-200">
                                     <span>Show Online Status</span>
                                     <button 
@@ -118,13 +145,51 @@ export default function SettingsContent() {
                                     <span>Read Receipts</span>
                                     <input type="checkbox" className="w-5 h-5 accent-indigo-600" defaultChecked />
                                 </div>
-                                <div className="p-4 flex justify-between items-center text-slate-700 dark:text-slate-200">
+                                
+                                <div className="p-4 flex justify-between items-center border-b border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-200">
                                     <span>Last Seen</span>
                                     <select className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm p-1.5 outline-none font-medium text-slate-700 dark:text-slate-200 cursor-pointer">
                                         <option>Everyone</option>
                                         <option>Nobody</option>
                                     </select>
                                 </div>
+
+                                {/* NEW: Hide Status From Section */}
+                                <div className="p-4 flex flex-col text-slate-700 dark:text-slate-200">
+                                    <div 
+                                        className="flex justify-between items-center cursor-pointer select-none"
+                                        onClick={() => setShowHideStatusList(!showHideStatusList)}
+                                    >
+                                        <span>Hide Status From</span>
+                                        <div className="flex items-center gap-2 text-sm text-slate-500 font-medium">
+                                            {hiddenFrom.length} users <FiChevronRight className={`transition-transform duration-200 ${showHideStatusList ? 'rotate-90' : ''}`} />
+                                        </div>
+                                    </div>
+                                    
+                                    {showHideStatusList && (
+                                        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 space-y-1 max-h-56 overflow-y-auto pr-2 custom-scrollbar">
+                                            {loadingFriends ? (
+                                                <div className="text-sm text-center text-slate-400 py-4">Loading friends...</div>
+                                            ) : friends.length === 0 ? (
+                                                <div className="text-sm text-center text-slate-400 py-4">No friends found.</div>
+                                            ) : (
+                                                friends.map(friend => (
+                                                    <label key={friend._id} className="flex items-center gap-3 p-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/40 rounded-xl cursor-pointer transition">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            className="w-4 h-4 accent-indigo-600 rounded cursor-pointer"
+                                                            checked={hiddenFrom.includes(friend._id)}
+                                                            onChange={() => toggleHideFrom(friend._id)}
+                                                        />
+                                                        <img src={friend.profilePic || `https://ui-avatars.com/api/?name=${friend.fullName}`} className="w-8 h-8 rounded-full object-cover bg-slate-200" alt={friend.fullName} />
+                                                        <span className="text-sm font-medium">{friend.fullName}</span>
+                                                    </label>
+                                                ))
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
                             </div>
                         </div>
 

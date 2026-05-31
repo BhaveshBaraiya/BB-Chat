@@ -24,60 +24,50 @@ export const initializeSocket = (server) => {
         }
 
         io.emit("onlineUsers", Array.from(userSocketMap.keys()));
-
         socket.broadcast.emit("userCameOnline", { userId });
 
         if (userId) {
-
             const undeliveredMessages = await MessageModel.find({
                 receiverId: userId,
                 delivered: false
             });
 
             for (const msg of undeliveredMessages) {
-
                 const sender = await UserModel.findById(msg.senderId);
                 const receiver = await UserModel.findById(msg.receiverId);
 
-                // CHECK BLOCK STATUS
-                const blocked =
-                    sender.blockedUsers?.includes(receiver._id) ||
-                    receiver.blockedUsers?.includes(sender._id);
+                if (!receiver) continue;
 
-                if (blocked) {
-                    continue;
-                }
+                const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
+                if (blocked) continue;
 
                 msg.delivered = true;
                 await msg.save();
 
                 const senderSocket = userSocketMap.get(msg.senderId.toString());
                 if (senderSocket) {
-                    io.to(senderSocket).emit("messageDelivered", {
-                        messageId: msg._id
-                    });
+                    io.to(senderSocket).emit("messageDelivered", { messageId: msg._id });
                 }
             }
         }
         
-        // --- Call Feature ---
         socket.on("call:initiate", async(data) => {
             const caller = await UserModel.findById(userId);
             const receiver = await UserModel.findById(data.to);
 
-            const blocked =
-                caller.blockedUsers?.includes(receiver._id) ||
-                receiver.blockedUsers?.includes(caller._id);
+            if (!receiver) return;
 
+            const blocked = caller.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(caller._id);
             if (blocked) return;
+
             const receiverSocketId = userSocketMap.get(data.to);
-            if(receiverSocketId){
-                io.to(receiverSocketId).emit("call:incoming",{
-                    from:userId,
-                    type:data.type,
-                    peerId:data.peerId,
-                    callerName:data.callerName,
-                    callerPic:data.callerPic
+            if (receiverSocketId) {
+                io.to(receiverSocketId).emit("call:incoming", {
+                    from: userId,
+                    type: data.type,
+                    peerId: data.peerId,
+                    callerName: data.callerName,
+                    callerPic: data.callerPic
                 });
             }
         });
@@ -89,33 +79,59 @@ export const initializeSocket = (server) => {
 
         socket.on("call:ended", ({ to }) => {
             const receiverSocketId = userSocketMap.get(to);
-            if(receiverSocketId){
-                io.to(receiverSocketId).emit("call:ended");
-            }
+            if (receiverSocketId) io.to(receiverSocketId).emit("call:ended");
         });
 
         socket.on("sendMessage", async(message) => {
-            const sender = await UserModel.findById(message.senderId);
-            const receiver = await UserModel.findById(message.receiverId);
-            const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
+            try {
+                const senderIdStr = typeof message.senderId === 'object' ? message.senderId._id.toString() : message.senderId.toString();
+                const sender = await UserModel.findById(senderIdStr);
+                
+                if (!sender) return;                
+                if (message.communityId) {
+                    const CommunityModel = (await import("../models/CommunityModel.js")).default;
+                    const commIdStr = typeof message.communityId === 'object' ? message.communityId._id.toString() : message.communityId.toString();
+                    const community = await CommunityModel.findById(commIdStr);
+                    
+                    if (!community) return;
+                    community.members.forEach(memberId => {
+                        if (memberId.toString() !== senderIdStr) {
+                            const memberSocketId = userSocketMap.get(memberId.toString());
+                            if (memberSocketId) {
+                                io.to(memberSocketId).emit("newCommunityMessage", message);
+                                io.to(memberSocketId).emit("community:message", { communityId: commIdStr });
+                            }
+                        }
+                    });
+                    return;
+                }
 
-            if (blocked) {
-                return;
-            }
-            const receiverSocketId = userSocketMap.get(message.receiverId);
-            
-            if (receiverSocketId) {
-                io.to(receiverSocketId).emit("newMessage", message);
+                const receiverIdStr = typeof message.receiverId === 'object' ? message.receiverId._id.toString() : message.receiverId.toString();
+                const receiver = await UserModel.findById(receiverIdStr);
+                
+                if (!receiver) return;
+
+                const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
+                if (blocked) return;
+
+                const receiverSocketId = userSocketMap.get(receiverIdStr);
+                if (receiverSocketId) {
+                    io.to(receiverSocketId).emit("newMessage", message);
+                }
+            } catch (err) {
+                console.error("Socket sendMessage Error:", err);
             }
         });
 
-        // --- Chat Events ---
         socket.on("typing:start", async({ receiverId, userId }) => {
             const sender = await UserModel.findById(userId);
             const receiver = await UserModel.findById(receiverId);
-            const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
 
+            if (!receiver) return;
+
+            const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
             if (blocked) return;
+
             const receiverSocket = userSocketMap.get(receiverId);
             if (receiverSocket) io.to(receiverSocket).emit("typing:start", { userId });
         });
@@ -123,9 +139,12 @@ export const initializeSocket = (server) => {
         socket.on("typing:stop", async({ receiverId, userId }) => {
             const sender = await UserModel.findById(userId);
             const receiver = await UserModel.findById(receiverId);
-            const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
 
+            if (!receiver) return;
+
+            const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
             if (blocked) return;
+
             const receiverSocket = userSocketMap.get(receiverId);
             if (receiverSocket) io.to(receiverSocket).emit("typing:stop", { userId });
         });
@@ -136,18 +155,30 @@ export const initializeSocket = (server) => {
         });
 
         socket.on("messageSeen", async ({ messageId, senderId }) => {
-            const msg = await MessageModel.findById(messageId);
-            const sender = await UserModel.findById(msg.senderId);
-            const receiver = await UserModel.findById(msg.receiverId);
+            try {
+                const msg = await MessageModel.findById(messageId);
+                if (!msg) return;
 
-            const blocked =
-                sender.blockedUsers?.includes(receiver._id) ||
-                receiver.blockedUsers?.includes(sender._id);
+                if (msg.receiverId) {
+                    const msgReceiverStr = typeof msg.receiverId === 'object' ? msg.receiverId._id.toString() : msg.receiverId.toString();
+                    const msgSenderStr = typeof msg.senderId === 'object' ? msg.senderId._id.toString() : msg.senderId.toString();
 
-            if (blocked) return;
-            await MessageModel.findByIdAndUpdate(messageId, { seen: true });
-            const senderSocket = userSocketMap.get(senderId);
-            if (senderSocket) io.to(senderSocket).emit("messageSeen", { messageId });
+                    const sender = await UserModel.findById(msgSenderStr);
+                    const receiver = await UserModel.findById(msgReceiverStr);
+
+                    if (receiver && sender) {
+                        const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
+                        if (blocked) return;
+                    }
+                }
+
+                await MessageModel.findByIdAndUpdate(messageId, { seen: true });
+
+                const senderSocket = userSocketMap.get(senderId);
+                if (senderSocket) io.to(senderSocket).emit("messageSeen", { messageId });
+            } catch (error) {
+                console.error("Socket messageSeen Error:", error);
+            }
         });
 
         socket.on("disconnect", async () => {
@@ -156,9 +187,7 @@ export const initializeSocket = (server) => {
                 io.emit("onlineUsers", Array.from(userSocketMap.keys()));
 
                 const lastSeenTime = new Date();
-
                 await UserModel.findByIdAndUpdate(userId, { lastSeen: lastSeenTime });
-                
                 io.emit("userWentOffline", { userId, lastSeen: lastSeenTime });
             }
         });
@@ -166,9 +195,7 @@ export const initializeSocket = (server) => {
 };
 
 export const getIO = () => {
-    if (!io) {
-        throw new Error("Socket.io has not been initialized!");
-    }
+    if (!io) throw new Error("Socket.io has not been initialized!");
     return io;
 };
 

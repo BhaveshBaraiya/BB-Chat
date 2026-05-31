@@ -14,6 +14,8 @@ import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import friendRoutes from "./routes/friendRoutes.js";
+import communityRoutes from "./routes/communityRoutes.js";
+import statusRoutes from "./routes/statusRoutes.js";
 import { initializeSocket } from "./socket/socket.js";
 
 // Connect DB
@@ -53,9 +55,11 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/friends", friendRoutes);
+app.use("/api/communities", communityRoutes);
+app.use("/api/statuses", statusRoutes);
 
 /* ========================
-   SOCKET.IO SERVER
+   SOCKET
 ======================== */
 
 const server = http.createServer(app);

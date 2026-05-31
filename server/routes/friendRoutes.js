@@ -18,7 +18,7 @@ router.use(protect);
 router.get("/search", searchUsers);
 router.get("/list", getFriendsList);
 router.get("/requests", getPendingRequests);
-router.get("/sidebar-users", getSidebarUsers); // Important!
+router.get("/sidebar-users", getSidebarUsers);
 
 router.post("/send", sendFriendRequest);
 router.post("/accept", acceptFriendRequest);

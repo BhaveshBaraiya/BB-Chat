@@ -3,7 +3,6 @@ import { Navigate } from "react-router-dom";
 import { FiLoader } from "react-icons/fi"; 
 
 export default function ProtectedRoute({ children }) {
-    // PULL FROM REDUX INSTEAD OF CONTEXT
     const user = useSelector((state) => state.auth.user);
     const loading = useSelector((state) => state.auth.loading);
 

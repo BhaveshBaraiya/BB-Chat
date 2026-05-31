@@ -179,29 +179,41 @@ export const unfriendUser = async (req, res) => {
 export const getSidebarUsers = async (req, res) => {
     try {
         const loggedInUserId = req.user._id;
+        
         const currentUser = await UserModel.findById(loggedInUserId)
             .populate("friends", "_id fullName email profilePic bio blockedUsers");
         
-        const friends = currentUser.friends || [];
+        if (!currentUser) {
+            return res.status(404).json({ success: false, message: "Current user not found." });
+        }
+
+        const friends = (currentUser.friends || []).filter(friend => friend !== null);
+        
         const messages = await MessageModel.find({
             $or: [{ senderId: loggedInUserId }, { receiverId: loggedInUserId }]
-        });
+        }); 
 
-        const interactedUserIds = messages.map(msg => 
-            msg.senderId.toString() === loggedInUserId.toString() 
-                ? msg.receiverId.toString() 
-                : msg.senderId.toString()
-        );
+        const interactedUserIds = messages
+            .filter(msg => msg.senderId && msg.receiverId) 
+            .map(msg => 
+                msg.senderId.toString() === loggedInUserId.toString() 
+                    ? msg.receiverId.toString() 
+                    : msg.senderId.toString()
+            );
 
         const friendIds = friends.map(f => f._id.toString());
+        
         const nonFriendIds = [...new Set(interactedUserIds)].filter(id => !friendIds.includes(id));
 
         const nonFriends = await UserModel.find({ _id: { $in: nonFriendIds } })
             .select("_id fullName email profilePic bio blockedUsers");
 
         const sidebarUsers = [...friends, ...nonFriends];
+        
         res.status(200).json({ success: true, users: sidebarUsers });
-    } catch (error) {
+        
+    } catch (error) {        
+        console.error("🔥 Crash in getSidebarUsers:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
