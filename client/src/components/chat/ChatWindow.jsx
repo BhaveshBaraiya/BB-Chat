@@ -284,7 +284,7 @@ export default function ChatWindow() {
                         toast.dismiss(t.id);
                         try {
                             await axiosInstance.post("/friends/unfriend", { targetId: selectedChat._id }).catch(() => {});
-                            
+
                             await axiosInstance.delete(`/messages/clear/${selectedChat._id}`).catch(() => {});
 
                             dispatch(setMessages([]));
@@ -373,7 +373,7 @@ export default function ChatWindow() {
 
             {/* MESSAGES */}
             <div className="flex-1 overflow-y-auto relative dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 bg-repeat relative" style={{
-                backgroundImage: `url('/assets/theme-bg.jpg')`,
+                backgroundImage: `url('/assets/theme-bg.png')`,
             }}>
                 {loading ? (
                     <div className="flex items-center justify-center h-full">

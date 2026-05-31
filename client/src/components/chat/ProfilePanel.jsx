@@ -27,7 +27,6 @@ export default function ProfilePanel() {
                 read: false
             };
             setNotifications(prev => [newNotif, ...prev]);
-            // Optional: trigger a toast here too so they see it instantly outside the panel
             toast(text, { icon: '🔔' }); 
         };
 
@@ -171,7 +170,7 @@ export default function ProfilePanel() {
                     </div>
                 </div>
                 <div className="flex gap-3">
-                    <FiInfo className="mt-1 text-slate-500 dark:text-slate-400" />
+                    <FiInfo className="mt-1 text-slate-500 dark:text-slate-400 min-w-[24px] max-w-[24px]" />
                     <div>
                         <p className="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wider font-medium">About</p>
                         <p className="text-sm text-slate-700 dark:text-slate-200 line-clamp-2">{user?.bio || "Available"}</p>
