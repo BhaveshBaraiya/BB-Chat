@@ -15,6 +15,15 @@ const chatSlice = createSlice({
         setReplyMessage: (state, action) => { state.replyMessage = action.payload; },
         setForwardMessageData: (state, action) => { state.forwardMessageData = action.payload; },
         setMessages: (state, action) => { state.messages = action.payload; },
+        togglePinnedMessage: (state, action) => {
+            const msg = state.messages.find(
+                m => m._id === action.payload
+            );
+
+            if (msg) {
+                msg.pinned = !msg.pinned;
+            }
+        },
         
         addMessage: (state, action) => {
             if (!state.messages.some(m => m._id === action.payload._id)) {
@@ -60,13 +69,33 @@ const chatSlice = createSlice({
                 msg.isDeletedForEveryone = true;
             }
         },
+
+        updateMessage: (state, action) => {
+    const index = state.messages.findIndex(
+        m => m._id === action.payload._id
+    );
+
+    if (index !== -1) {
+        state.messages[index] = action.payload;
+    }
+},
+
+updatePinnedMessage: (state, action) => {
+    const index = state.messages.findIndex(
+        m => m._id === action.payload._id
+    );
+
+    if (index !== -1) {
+        state.messages[index] = action.payload;
+    }
+},
     }
 });
 
 export const { 
     setSelectedChat, setReplyMessage, setForwardMessageData, setMessages, 
     addMessage, incrementUnreadCount, clearUnreadCount, updateMessageStatus, 
-    updateMessageReaction, addTypingUser, removeTypingUser, updateChatUser, removeMessage, markMessageDeletedForAll
+    updateMessageReaction, addTypingUser, removeTypingUser, updateChatUser, removeMessage, markMessageDeletedForAll, togglePinnedMessage
 } = chatSlice.actions;
 
 export default chatSlice.reducer;

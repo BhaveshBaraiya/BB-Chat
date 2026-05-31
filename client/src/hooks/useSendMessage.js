@@ -2,80 +2,171 @@ import { useState, useContext } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import axiosInstance from "../services/axios";
 import { SocketContext } from "../context/SocketContext";
-import { addMessage, setReplyMessage, removeMessage } from "../redux/features/chatSlice";
+import {
+    addMessage,
+    setReplyMessage,
+    removeMessage
+} from "../redux/features/chatSlice";
 import toast from "react-hot-toast";
 
 export default function useSendMessage() {
     const dispatch = useDispatch();
     const { socket } = useContext(SocketContext);
-    
-    const selectedChat = useSelector((state) => state.chat.selectedChat);
-    const replyMessage = useSelector((state) => state.chat.replyMessage);
 
-    const user = useSelector((state) => state.auth.user); 
-    
+    const selectedChat = useSelector(
+        (state) => state.chat.selectedChat
+    );
+
+    const replyMessage = useSelector(
+        (state) => state.chat.replyMessage
+    );
+
+    const user = useSelector(
+        (state) => state.auth.user
+    );
+
     const [loading, setLoading] = useState(false);
 
-    const sendMessage = async (text, files = [], audioBlob) => {
-        if (!text.trim() && files.length === 0 && !audioBlob) return;
-        
+    const sendMessage = async (
+        text = "",
+        files = [],
+        audioBlob = null
+    ) => {
+        const trimmedText = text?.trim() || "";
+
+        if (
+            !trimmedText &&
+            files.length === 0 &&
+            !audioBlob
+        ) {
+            return;
+        }
+
         const tempId = `temp-${Date.now()}`;
-        const isTextOnly = files.length === 0 && !audioBlob;
+
+        const isTextOnly =
+            files.length === 0 &&
+            !audioBlob;
 
         try {
             setLoading(true);
-            
+
+            // ========================
+            // OPTIMISTIC MESSAGE
+            // ========================
             if (isTextOnly) {
                 const optimisticMessage = {
                     _id: tempId,
-                    text: text,
-                    senderId: user, 
+                    text: trimmedText,
+                    senderId: user,
                     createdAt: new Date().toISOString(),
                     delivered: false,
                     seen: false,
-                    replyTo: replyMessage ? { text: replyMessage.text } : null,
+                    edited: false,
+                    reactions: [],
+                    images: [],
+                    documents: [],
+                    audio: "",
+                    replyTo: replyMessage
+                        ? {
+                              _id: replyMessage._id,
+                              text: replyMessage.text
+                          }
+                        : null
                 };
-                                
+
                 dispatch(addMessage(optimisticMessage));
-                dispatch(setReplyMessage(null));
             }
 
+            // ========================
+            // FORM DATA
+            // ========================
             const formData = new FormData();
-            if (text.trim()) formData.append("text", text);
-            if (replyMessage) formData.append("replyTo", replyMessage._id);
-            if (audioBlob) formData.append("files", new File([audioBlob], "voice.webm", { type: "audio/webm" }));
-            files.forEach(file => formData.append("files", file));
 
-            const { data } = await axiosInstance.post(
-                `/messages/send/${selectedChat._id}`,
-                formData,
-                { headers: { "Content-Type": "multipart/form-data" } }
+            if (trimmedText) {
+                formData.append("text", trimmedText);
+            }
+
+            if (replyMessage) {
+                formData.append(
+                    "replyTo",
+                    replyMessage._id
+                );
+            }
+
+            if (audioBlob) {
+                formData.append(
+                    "files",
+                    new File(
+                        [audioBlob],
+                        "voice.webm",
+                        {
+                            type: "audio/webm"
+                        }
+                    )
+                );
+            }
+
+            files.forEach((file) => {
+                formData.append("files", file);
+            });
+
+            // ========================
+            // API CALL
+            // ========================
+            const { data } =
+                await axiosInstance.post(
+                    `/messages/send/${selectedChat._id}`,
+                    formData,
+                    {
+                        headers: {
+                            "Content-Type":
+                                "multipart/form-data"
+                        }
+                    }
+                );
+
+            const actualMessage =
+                data.message || data;
+
+            // Remove optimistic msg
+            if (isTextOnly) {
+                dispatch(removeMessage(tempId));
+            }
+
+            dispatch(addMessage(actualMessage));
+
+            // Clear reply state
+            dispatch(setReplyMessage(null));
+
+            // Optional socket emit
+            if (socket) {
+                socket.emit(
+                    "sendMessage",
+                    actualMessage
+                );
+            }
+
+            return actualMessage;
+
+        } catch (err) {
+            console.error(
+                "Failed to send message:",
+                err
             );
-            
-            const actualMessage = data.message || data;
 
             if (isTextOnly) {
                 dispatch(removeMessage(tempId));
             }
 
-            dispatch(addMessage(data.message));
-            
-            if (socket) {
-                socket.emit("sendMessage", actualMessage);
-            }
-            
-            if (!isTextOnly) {
-                dispatch(setReplyMessage(null));
-            }
-
-        } catch (err) {
-            console.error("Failed to send message:", err);
-            if (isTextOnly) dispatch(removeMessage(tempId));
             toast.error("Failed to send message");
         } finally {
             setLoading(false);
         }
     };
 
-    return { sendMessage, loading };
+    return {
+        sendMessage,
+        loading
+    };
 }

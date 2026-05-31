@@ -7,12 +7,6 @@ const messageSchema = new mongoose.Schema( {
             required:true
         },
 
-        receiverId:{
-            type:mongoose.Schema.Types.ObjectId,
-            ref:"User",
-            required:true
-        },
-
         text:{
             type:String,
             default:""
@@ -45,7 +39,7 @@ const messageSchema = new mongoose.Schema( {
         receiverId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
-            default: null // 
+            default: null
         },
         communityId: {
             type: mongoose.Schema.Types.ObjectId,
