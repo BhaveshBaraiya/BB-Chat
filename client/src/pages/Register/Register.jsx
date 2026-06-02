@@ -37,32 +37,29 @@ export default function Register() {
             return toast.error("Please enter a valid email address");
         }
 
-        let isSuccess = false;
-
         const isStrong = validator.isStrongPassword(password, {
-            minLength: 8,
-            minLowercase: 1,
-            minUppercase: 1,
-            minNumbers: 1,
-            minSymbols: 1
+            minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1
         });
 
         if (!isStrong) {
             return toast.error("Password must be at least 8 characters long, including an uppercase letter, a number, and a symbol.");
         }
 
+        let isSuccess = false;
+
         try {
             setLoading(true);
-            await axiosInstance.post("/auth/register", { fullName, email, password });            
-            toast.success("Account created! Please check your email.");
+            const { data } = await axiosInstance.post("/auth/register", { fullName, email, password });            
+            toast.success(data.message || "Account created! Please check your email.");
+            
             isSuccess = true;
             navigate("/verify-email", { state: { email } });
+
         } catch (error) {
             toast.error(
                 error.response?.data?.message || "Registration failed. Please try again."
             );
-            isSuccess = true;
-        } finally {
+        } finally {        
             if (!isSuccess) {
                 setLoading(false);
             }

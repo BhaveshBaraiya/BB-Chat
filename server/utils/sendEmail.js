@@ -1,17 +1,22 @@
 import nodemailer from "nodemailer";
 
-// OPTIMIZATION: Create the transporter OUTSIDE the function.
-// This reuses the connection pool, saving memory and speeding up delivery.
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
-});
+// 1. Declare the variable outside to cache the connection
+let transporter = null;
 
 export const sendVerificationEmail = async (email, otp) => {
     try {
+        // 2. Lazy Initialization: Create the transporter only on the first run.
+        // This guarantees dotenv has finished loading your process.env variables.
+        if (!transporter) {
+            transporter = nodemailer.createTransport({
+                service: 'gmail',
+                auth: {
+                    user: process.env.EMAIL_USER,
+                    pass: process.env.EMAIL_PASS
+                }
+            });
+        }
+
         const mailOptions = {
             from: `"BBChat Security" <${process.env.EMAIL_USER}>`, 
             to: email,
@@ -25,14 +30,7 @@ export const sendVerificationEmail = async (email, otp) => {
             </head>
             <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #334155;">
                 
-                <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-                    
-                    <tr>
-                        <td style="padding: 40px 40px 20px 40px; text-align: center;">
-                            <img src="https://yourdomain.com/assets/logo.png" alt="BBChat Logo" style="height: 48px; width: auto; display: block; margin: 0 auto;" />
-                        </td>
-                    </tr>
-                    
+                <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">                
                     <tr>
                         <td style="padding: 20px 40px 40px 40px; text-align: center;">
                             <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 600; color: #0f172a;">Verify your email</h2>
@@ -52,21 +50,8 @@ export const sendVerificationEmail = async (email, otp) => {
                     
                     <tr>
                         <td style="background-color: #f8fafc; padding: 32px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
-                            
-                            <div style="margin-bottom: 20px;">
-                                <a href="https://www.linkedin.com/in/bhavesh-baraiya/" style="display: inline-block; margin: 0 10px; text-decoration: none;">
-                                    <img src="https://cdn-icons-png.flaticon.com/512/174/174814.png" alt="LinkedIn" style="height: 22px; width: 22px; opacity: 0.7;" />
-                                </a>
-                                <a href="https://bbchat-devscommunity.vercel.app/" style="display: inline-block; margin: 0 10px; text-decoration: none;">
-                                    <img src="https://bbchat-devscommunity.vercel.app/assets/logo.png" alt="Website" style="height: 22px; width: 22px; opacity: 0.7;" />
-                                </a>
-                            </div>
-
                             <p style="margin: 0 0 8px 0; font-size: 12px; color: #94a3b8;">
                                 &copy; ${new Date().getFullYear()} BBChat. All rights reserved.
-                            </p>
-                            <p style="margin: 0; font-size: 12px; color: #94a3b8;">
-                                Need help? <a href="mailto:bhavesh.baraiya.codes@gmail.com" style="color: #4f46e5; text-decoration: none;">Contact Support</a>
                             </p>
                         </td>
                     </tr>
