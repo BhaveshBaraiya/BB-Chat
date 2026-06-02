@@ -6,14 +6,13 @@ export const fetchCurrentUser = createAsyncThunk('auth/fetchCurrentUser', async 
         const { data } = await axiosInstance.get("/auth/me");
         return data.user;
     } catch(error){
-        if(error.response?.status===401){
-            return rejectWithValue(null);
+        if(error.response?.status === 401){
+            return rejectWithValue("UNAUTHORIZED"); 
         }
         return rejectWithValue(
-            error.response?.data ||
-            "Failed to fetch user"
+            error.response?.data?.message || "Failed to fetch user"
         );
-}
+    }
 });
 
 const authSlice = createSlice({
@@ -23,7 +22,6 @@ const authSlice = createSlice({
         loading: true,
     },
     reducers: {
-        // ADDED: setUser so Login.jsx works!
         setUser: (state, action) => {
             state.user = action.payload;
             state.loading = false;
@@ -53,6 +51,5 @@ const authSlice = createSlice({
     }
 });
 
-// EXPORT setUser here!
 export const { setUser, updateUser, logout } = authSlice.actions;
 export default authSlice.reducer;

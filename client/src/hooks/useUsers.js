@@ -6,19 +6,24 @@ export default function useUsers() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        let isMounted = true;
+
         const getUsers = async () => {
             try {
-                // Hitting the combined endpoint for the sidebar
                 const { data } = await axiosInstance.get("/friends/sidebar-users");
-                setUsers(data.users);
+                if (isMounted) setUsers(data.users);
             } catch (error) {
-                console.log(error);
+                if (isMounted) console.log(error);
             } finally {
-                setLoading(false);
+                if (isMounted) setLoading(false);
             }
         };
 
         getUsers();
+
+        return () => {
+            isMounted = false;
+        };
     }, []);
 
     return { users, loading };

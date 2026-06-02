@@ -12,6 +12,7 @@ export default function FriendsContent() {
     const [pendingRequests, setPendingRequests] = useState([]);
     const [friends, setFriends] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [isSearching, setIsSearching] = useState(false); // Optional: Helps track if search is active
 
     useEffect(() => {
         fetchPendingRequests();
@@ -60,24 +61,35 @@ export default function FriendsContent() {
         } catch (error) { console.error(error); }
     };
 
-    const handleSearch = async (e) => {
-        const value = e.target.value;
-        setSearchQuery(value);
-        
-        if (!value.trim()) {
-            setSearchResults([]);
-            return;
-        }
-
-        try {
-            const { data } = await axiosInstance.get(`/friends/search?query=${value}`);
-            const filteredResults = data.users.filter(user => 
-                !friends.some(f => f._id === user._id) &&
-                !pendingRequests.some(p => p._id === user._id)
-            );
-            setSearchResults(filteredResults);
-        } catch (error) { console.error(error); }
+    const handleSearchInput = (e) => {
+        setSearchQuery(e.target.value);
     };
+
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(async () => {
+            if (!searchQuery.trim()) {
+                setSearchResults([]);
+                setIsSearching(false);
+                return;
+            }
+
+            try {
+                setIsSearching(true);
+                const { data } = await axiosInstance.get(`/friends/search?query=${searchQuery}`);
+                const filteredResults = data.users.filter(user => 
+                    !friends.some(f => f._id === user._id) &&
+                    !pendingRequests.some(p => p._id === user._id)
+                );
+                setSearchResults(filteredResults);
+            } catch (error) { 
+                console.error(error); 
+            } finally {
+                setIsSearching(false);
+            }
+        }, 500); 
+
+        return () => clearTimeout(delayDebounceFn);
+    }, [searchQuery, friends, pendingRequests]);
 
     const sendRequest = async (targetUserId) => {
         try {
@@ -138,30 +150,48 @@ export default function FriendsContent() {
                     <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                         value={searchQuery}
-                        onChange={handleSearch}
-                        placeholder="Search by name or exact email..."
+                        onChange={handleSearchInput}
+                        placeholder="Search by name..."
                         className="w-full h-10 bg-slate-100 rounded-lg pl-10 pr-4 outline-none text-sm"
                     />
                 </div>
             </div>
 
             <div className="flex-1 overflow-y-auto">
-                {searchQuery.trim() && searchResults.length > 0 && (
+                {/* Search Results & Empty State Logic */}
+                {searchQuery.trim() !== "" && (
                     <div className="p-2 border-b">
-                        {searchResults.map(user => (
-                            <div key={user._id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50">
-                                <div className="flex items-center gap-3 overflow-hidden">
-                                    <img src={user.profilePic || `https://ui-avatars.com/api/?name=${user.fullName}`} alt="profile" className="w-10 h-10 rounded-full shrink-0 object-cover" />
-                                    <div className="truncate">
-                                        <p className="font-medium text-sm text-slate-800 truncate">{user.fullName}</p>
-                                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
-                                    </div>
-                                </div>
-                                <button disabled={loading} onClick={() => sendRequest(user._id)} className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center hover:bg-indigo-200 transition shrink-0">
-                                    <FiUserPlus size={16} />
-                                </button>
+                        {isSearching ? (
+                            <div className="py-6 text-center">
+                                <p className="text-sm text-slate-400">Searching...</p>
                             </div>
-                        ))}
+                        ) : searchResults.length > 0 ? (
+                            searchResults.map(user => (
+                                <div key={user._id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50">
+                                    <div className="flex items-center gap-3 overflow-hidden">
+                                        <img src={user.profilePic || `https://ui-avatars.com/api/?name=${user.fullName}`} alt="profile" className="w-10 h-10 rounded-full shrink-0 object-cover" />
+                                        <div className="truncate">
+                                            <p className="font-medium text-sm text-slate-800 truncate">{user.fullName}</p>
+                                            {/* Replaced user.email with user.bio for privacy */}
+                                            <p className="text-xs text-slate-500 truncate">{user.bio || "Available"}</p>
+                                        </div>
+                                    </div>
+                                    <button disabled={loading} onClick={() => sendRequest(user._id)} className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center hover:bg-indigo-200 transition shrink-0">
+                                        <FiUserPlus size={16} />
+                                    </button>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="py-8 flex flex-col items-center justify-center gap-2">
+                                <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-1">
+                                    <FiSearch className="text-slate-300 w-6 h-6" />
+                                </div>
+                                <p className="text-sm font-medium text-slate-600">No users found</p>
+                                <p className="text-xs text-slate-400 text-center px-4">
+                                    We couldn't find anyone matching "{searchQuery}".
+                                </p>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -182,7 +212,6 @@ export default function FriendsContent() {
                                         <p className="text-xs text-indigo-500 font-medium truncate">Wants to be friends</p>
                                     </div>
                                 </div>
-                                {/* ACCEPT & REJECT BUTTONS */}
                                 <div className="flex gap-2 shrink-0">
                                     <button disabled={loading} onClick={() => acceptRequest(user._id)} className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition flex items-center gap-1">
                                         <FiCheck size={14} /> Accept

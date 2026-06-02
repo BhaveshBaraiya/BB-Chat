@@ -8,13 +8,21 @@ export const getMessages = async (req, res) => {
     try {
         const { id: targetId } = req.params;
         const myId = req.user._id;        
-        const community = await CommunityModel.findById(targetId);
+        const community = await CommunityModel.findById(targetId);    
+                
+        const limit = parseInt(req.query.limit) || 50; 
+        const page = parseInt(req.query.page) || 1;
+        const skip = (page - 1) * limit;
 
         let messages;
         if (community) {
             messages = await MessageModel.find({ communityId: targetId })
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
                 .populate("replyTo")
-                .populate("senderId", "fullName profilePic");
+                .populate("senderId", "fullName profilePic")
+                .lean();
         } else {
             messages = await MessageModel.find({
                 $or: [
@@ -23,11 +31,15 @@ export const getMessages = async (req, res) => {
                 ],
                 deletedFor: { $ne: myId }
             })
+            .sort({ createdAt: -1 })
+            .skip(skip) // <-- ADD THIS
+            .limit(limit)
             .populate("replyTo")
-            .populate("senderId", "fullName profilePic");
+            .populate("senderId", "fullName profilePic")
+            .lean();
         }
 
-        res.status(200).json({ success: true, messages });
+        res.status(200).json({ success: true, messages: messages.reverse() });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -50,23 +62,15 @@ export const sendMessage = async (req, res) => {
 
         if (req.files?.files) {
             req.files.files.forEach(file => {
-
-                // IMAGE
                 if (file.mimetype.startsWith("image")) {
                     images.push(file.path);
-                }
-
-                // AUDIO
-                else if (
+                } else if (
                     file.mimetype.startsWith("audio") ||
                     file.originalname === "voice.webm" ||
                     file.mimetype === "video/webm"
                 ) {
                     audio = file.path;
-                }
-
-                // DOCUMENT
-                else {
+                } else {
                     documents.push({
                         fileUrl: file.path,
                         fileName: file.originalname,
@@ -80,7 +84,6 @@ export const sendMessage = async (req, res) => {
         // COMMUNITY MESSAGE
         // =========================
         if (community) {
-
             const newMessage = await MessageModel.create({
                 senderId,
                 communityId: community._id,
@@ -92,11 +95,12 @@ export const sendMessage = async (req, res) => {
                 delivered: true
             });
 
-            const populatedMessage =
-                await MessageModel.findById(newMessage._id)
-                    .populate("senderId", "fullName profilePic")
-                    .populate("replyTo")
-                    .populate("communityId", "name avatar");
+            // OPTIMIZATION: Populate in memory instead of double-fetching from DB
+            await newMessage.populate([
+                { path: "senderId", select: "fullName profilePic" },
+                { path: "replyTo" },
+                { path: "communityId", select: "name avatar" }
+            ]);
 
             community.lastMessage = newMessage._id;
             await community.save();
@@ -105,37 +109,21 @@ export const sendMessage = async (req, res) => {
 
             community.members.forEach(memberId => {
                 if (memberId.toString() !== senderId.toString()) {
-
-                    const socketId =
-                        userSocketMap.get(memberId.toString());
-
+                    const socketId = userSocketMap.get(memberId.toString());
                     if (socketId) {
-                        io.to(socketId).emit(
-                            "newCommunityMessage",
-                            populatedMessage
-                        );
-
-                        io.to(socketId).emit(
-                            "community:message",
-                            {
-                                communityId: community._id
-                            }
-                        );
+                        io.to(socketId).emit("newCommunityMessage", newMessage);
+                        io.to(socketId).emit("community:message", { communityId: community._id });
                     }
                 }
             });
 
-            return res.status(201).json({
-                success: true,
-                message: populatedMessage
-            });
+            return res.status(201).json({ success: true, message: newMessage });
         }
 
         // =========================
         // PRIVATE MESSAGE
         // =========================
-        const receiverSocketId =
-            userSocketMap.get(receiverOrCommunityId.toString());
+        const receiverSocketId = userSocketMap.get(receiverOrCommunityId.toString());
 
         const newMessage = await MessageModel.create({
             senderId,
@@ -148,44 +136,26 @@ export const sendMessage = async (req, res) => {
             delivered: !!receiverSocketId
         });
 
-        const populatedMessage =
-            await MessageModel.findById(newMessage._id)
-                .populate("senderId", "fullName profilePic")
-                .populate("replyTo");
+        // OPTIMIZATION: Populate in memory instead of double-fetching
+        await newMessage.populate([
+            { path: "senderId", select: "fullName profilePic" },
+            { path: "replyTo" }
+        ]);
 
         if (receiverSocketId) {
-
-            getIO().to(receiverSocketId).emit(
-                "newMessage",
-                populatedMessage
-            );
-
-            const senderSocketId =
-                userSocketMap.get(senderId.toString());
-
+            getIO().to(receiverSocketId).emit("newMessage", newMessage);
+            
+            const senderSocketId = userSocketMap.get(senderId.toString());
             if (senderSocketId) {
-
-                getIO().to(senderSocketId).emit(
-                    "messageDelivered",
-                    {
-                        messageId: newMessage._id
-                    }
-                );
+                getIO().to(senderSocketId).emit("messageDelivered", { messageId: newMessage._id });
             }
         }
 
-        return res.status(201).json({
-            success: true,
-            message: populatedMessage
-        });
+        return res.status(201).json({ success: true, message: newMessage });
 
     } catch (error) {
         console.error("SEND MESSAGE ERROR:", error);
-
-        return res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        return res.status(500).json({ success: false, error: error.message });
     }
 };
 

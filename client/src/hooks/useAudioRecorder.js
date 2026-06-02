@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useState, useRef, useCallback } from 'react';
 
 export const useAudioRecorder = () => {
@@ -10,8 +11,7 @@ export const useAudioRecorder = () => {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
-  
-  // Ref to prevent onstop from creating a blob if we cancelled
+    
   const isCancelledRef = useRef(false);
 
   const startRecording = useCallback(async () => {
@@ -29,7 +29,6 @@ export const useAudioRecorder = () => {
       };
 
       mediaRecorderRef.current.onstop = () => {
-        // ONLY create the blob if it was a normal stop, not a cancel
         if (!isCancelledRef.current) {
           const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
           setAudioBlob(blob);
@@ -78,7 +77,7 @@ export const useAudioRecorder = () => {
   }, [isRecording]);
 
   const cancelRecording = useCallback(() => {
-    isCancelledRef.current = true; // Mark as cancelled BEFORE stopping
+    isCancelledRef.current = true;
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
     }
@@ -96,6 +95,19 @@ export const useAudioRecorder = () => {
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl(null);
   }, [audioUrl]);
+
+useEffect(() => {
+    return () => {
+        clearInterval(timerRef.current);
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            isCancelledRef.current = true;
+            mediaRecorderRef.current.stop();
+        }
+        if (mediaRecorderRef.current?.stream) {
+            mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+        }
+    };
+}, []);
 
   return {
     isRecording,

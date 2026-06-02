@@ -15,16 +15,21 @@ const chatSlice = createSlice({
         setReplyMessage: (state, action) => { state.replyMessage = action.payload; },
         setForwardMessageData: (state, action) => { state.forwardMessageData = action.payload; },
         setMessages: (state, action) => { state.messages = action.payload; },
-        togglePinnedMessage: (state, action) => {
-            const msg = state.messages.find(
-                m => m._id === action.payload
-            );
-
-            if (msg) {
-                msg.pinned = !msg.pinned;
-            }
-        },
         
+        // --- NEW: Safely add older messages to the top of the list ---
+        prependMessages: (state, action) => {
+            // Filter out any duplicates just in case
+            const newMessages = action.payload.filter(
+                newMsg => !state.messages.some(existingMsg => existingMsg._id === newMsg._id)
+            );
+            state.messages = [...newMessages, ...state.messages];
+        },
+        // -------------------------------------------------------------
+
+        togglePinnedMessage: (state, action) => {
+            const msg = state.messages.find(m => m._id === action.payload);
+            if (msg) msg.pinned = !msg.pinned;
+        },
         addMessage: (state, action) => {
             if (!state.messages.some(m => m._id === action.payload._id)) {
                 state.messages.push(action.payload);
@@ -69,33 +74,22 @@ const chatSlice = createSlice({
                 msg.isDeletedForEveryone = true;
             }
         },
-
         updateMessage: (state, action) => {
-    const index = state.messages.findIndex(
-        m => m._id === action.payload._id
-    );
-
-    if (index !== -1) {
-        state.messages[index] = action.payload;
-    }
-},
-
-updatePinnedMessage: (state, action) => {
-    const index = state.messages.findIndex(
-        m => m._id === action.payload._id
-    );
-
-    if (index !== -1) {
-        state.messages[index] = action.payload;
-    }
-},
+            const index = state.messages.findIndex(m => m._id === action.payload._id);
+            if (index !== -1) state.messages[index] = action.payload;
+        },
+        updatePinnedMessage: (state, action) => {
+            const index = state.messages.findIndex(m => m._id === action.payload._id);
+            if (index !== -1) state.messages[index] = action.payload;
+        },
     }
 });
 
 export const { 
-    setSelectedChat, setReplyMessage, setForwardMessageData, setMessages, 
+    setSelectedChat, setReplyMessage, setForwardMessageData, setMessages, prependMessages, 
     addMessage, incrementUnreadCount, clearUnreadCount, updateMessageStatus, 
-    updateMessageReaction, addTypingUser, removeTypingUser, updateChatUser, removeMessage, markMessageDeletedForAll, togglePinnedMessage
+    updateMessageReaction, addTypingUser, removeTypingUser, updateChatUser, removeMessage, 
+    markMessageDeletedForAll, togglePinnedMessage, updateMessage, updatePinnedMessage
 } = chatSlice.actions;
 
 export default chatSlice.reducer;

@@ -1,10 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import useSearchUsers from "../../hooks/useSearchUsers";
 
 export default function UserSearchModal({show, onClose, onSelect}) {
-
     const [query, setQuery] = useState("");
     const { users, searchUsers } = useSearchUsers();
+
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(() => {
+            if (query.trim() !== "") {
+                searchUsers(query);
+            }
+        }, 500);
+
+        return () => clearTimeout(delayDebounceFn);
+    }, [query, searchUsers]);
+
     if (!show) return null;
 
     return (
@@ -16,17 +26,12 @@ export default function UserSearchModal({show, onClose, onSelect}) {
 
                 <input
                     value={query}
-                    onChange={(e) => {
-                        const value = e.target.value;
-                        setQuery(value);
-                        searchUsers(value);
-                    }}
+                    onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search by name or email"
                     className="w-full border p-3 rounded-xl outline-none"
                 />
 
                 <div className="mt-4 max-h-[350px] overflow-y-auto">
-
                     {
                         users.map(user => (
                             <div
@@ -37,7 +42,7 @@ export default function UserSearchModal({show, onClose, onSelect}) {
                                 }}
                                 className="flex items-center gap-3 hover:bg-slate-100 p-3 rounded-xl cursor-pointer">
 
-                                <img src={user.profilePic} className="w-12 h-12 rounded-full" />
+                                <img src={user.profilePic || `https://ui-avatars.com/api/?name=${user.fullName}`} className="w-12 h-12 rounded-full object-cover" alt="profile" />
 
                                 <div>
                                     <div className="font-medium">
@@ -51,7 +56,7 @@ export default function UserSearchModal({show, onClose, onSelect}) {
                         ))
                     }
                 </div>
-                <button onClick={onClose} className="mt-4 w-full bg-slate-100 rounded-xl p-3">
+                <button onClick={onClose} className="mt-4 w-full bg-slate-100 hover:bg-slate-200 transition rounded-xl p-3">
                     Close
                 </button>
             </div>

@@ -39,20 +39,26 @@ export default function Login() {
             return toast.error("Invalid email format");
         }
 
+        let isSuccess = false;
+
         try {
             setLoading(true);
             const { data } = await axiosInstance.post("/auth/login", { email, password });
             dispatch(setUser(data.user));
             toast.success(data.message || "Welcome back!");
+            isSuccess = true;
             navigate("/chat");
         } catch (error) {
             if (error.response?.status === 403 && error.response?.data?.isVerified === false) {
                 toast.error("Please verify your email before logging in.");
+                isSuccess = true;
                 return navigate("/verify-email", { state: { email } });
             }
             toast.error(error.response?.data?.message || "Login failed");
         } finally {
-            setLoading(false);
+            if (!isSuccess) {
+                setLoading(false);
+            }         
         }
     };
 

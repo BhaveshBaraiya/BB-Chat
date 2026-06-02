@@ -1,4 +1,4 @@
-import { useContext, useState, useRef, useEffect } from "react";
+import { useContext, useState, useRef, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { FiArrowLeft, FiPhone, FiVideo, FiMoreVertical, FiSmile, FiPaperclip, FiSend, FiMic, FiSquare, FiX, FiPause, FiPlay, FiMessageSquare, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import EmojiPicker from "emoji-picker-react";
@@ -30,7 +30,8 @@ export default function ChatWindow() {
     const { socket, onlineUsers, lastSeenMap } = useContext(SocketContext);
     const { initiateCall } = useContext(CallContext);
 
-    const { messages, loading } = useMessages();
+    const { messages, loading, fetchMoreMessages, hasMore, fetchingMore } = useMessages()
+
     const { sendMessage } = useSendMessage();
 
     const [text, setText] = useState("");
@@ -159,7 +160,11 @@ export default function ChatWindow() {
             ? "Online"
             : (isTargetStatusVisible && userLastSeen ? formatLastSeen(userLastSeen) : "Offline");
 
-    const filteredMessages = messages.filter(msg => msg.text?.toLowerCase().includes(search.toLowerCase()));
+    // OPTIMIZATION: Memoize filtering so it doesn't recalculate on every keystroke
+    const filteredMessages = useMemo(() => {
+        if (!search) return messages;
+        return messages.filter(msg => msg.text?.toLowerCase().includes(search.toLowerCase()));
+    }, [messages, search]);
 
     useEffect(() => {
         if (messagesEndRef.current) {
@@ -332,7 +337,7 @@ export default function ChatWindow() {
             className="h-full flex flex-col w-full bg-slate-50 dark:bg-slate-900 relative animate-in slide-in-from-right-4 fade-in duration-200"
         >
             {/* HEADER */}
-            <div className="h-[70px] sm:h-[69px] bg-white dark:bg-slate-800 border-b dark:border-slate-700 px-4 sm:px-6 flex justify-between items-center z-10 relative shrink-0 shadow-sm">
+            <div className="h-[70px] sm:h-[69px] bg-white dark:bg-slate-800 border-b-slate-500 dark:border-slate-700 px-4 sm:px-6 flex justify-between items-center z-10 relative shrink-0 shadow-sm">
                 {showSearchBar ? (
                     <div className="flex items-center gap-3 w-full">
                         <button onClick={() => { setShowSearchBar(false); setSearch(""); }} className="text-slate-700 dark:text-slate-300 shrink-0"><FiArrowLeft size={22} /></button>
@@ -357,7 +362,6 @@ export default function ChatWindow() {
                             </div>
                         </div>
                         <div className="flex gap-2 sm:gap-3 text-slate-600 dark:text-slate-200 items-center">
-    {/* HIDE CALL BUTTONS IF IT'S A GROUP */}
     {!isGroup && (
         <>
             <button onClick={() => handleInitiateCall("audio")} className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition"><FiPhone size={18} /></button>
@@ -372,29 +376,50 @@ export default function ChatWindow() {
             </div>
 
             {/* MESSAGES */}
-            <div className="flex-1 overflow-y-auto relative dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 bg-repeat relative" style={{
-                backgroundImage: `url('/assets/theme-bg.png')`,
-            }}>
+            <div 
+                className="flex-1 overflow-y-auto relative dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 bg-repeat" 
+                style={{ backgroundImage: `url('/assets/theme-bg.png')` }}
+                onScroll={(e) => {
+                    // Trigger infinite scroll when hitting the top
+                    if (e.target.scrollTop === 0 && hasMore && !fetchingMore) {
+                        const previousHeight = e.target.scrollHeight;
+                        const target = e.target;
+                        
+                        fetchMoreMessages().then(() => {
+                            // Keep the scroll position from jumping
+                            requestAnimationFrame(() => {
+                                target.scrollTop = target.scrollHeight - previousHeight;
+                            });
+                        });
+                    }
+                }}
+            >
                 {loading ? (
                     <div className="flex items-center justify-center h-full">
                         <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
                     </div>
                 ) : (
                     <div className="space-y-2 flex flex-col min-h-full">
+                                
+                    {fetchingMore && (
+                        <div className="flex justify-center py-4 mt-2">
+                            <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    )}
                     
                     {filteredMessages.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center p-6 animate-in fade-in duration-300">                
-                        <div className="bg-[#FFEECD] dark:bg-[#1E2A30] text-[#54656F] dark:text-[#8696A0] text-[12.5px] font-medium px-4 py-3 rounded-md max-w-sm text-center flex flex-col items-center gap-1.5">
-                            <FiLock size={14} className="mb-0.5 text-slate-500 dark:text-slate-400" />
-                            <p>
-                                Messages and calls are end-to-end encrypted. No one outside of this chat, not even ChatApp, can read or listen to them.
-                            </p>
+                        <div className="flex-1 flex flex-col items-center justify-center p-6 animate-in fade-in duration-300">                
+                            <div className="bg-[#FFEECD] dark:bg-[#1E2A30] text-[#54656F] dark:text-[#8696A0] text-[12.5px] font-medium px-4 py-3 rounded-md max-w-sm text-center flex flex-col items-center gap-1.5">
+                                <FiLock size={14} className="mb-0.5 text-slate-500 dark:text-slate-400" />
+                                <p>
+                                    Messages and calls are end-to-end encrypted. No one outside of this chat, not even ChatApp, can read or listen to them.
+                                </p>
+                            </div>
+                            
+                            <div className="mt-4 bg-white dark:bg-[#202C33] text-[#54656F] dark:text-slate-400 text-xs px-4 py-1.5 rounded-md font-medium">
+                                You started a conversation with {selectedChat.fullName}
+                            </div>
                         </div>
-                        
-                        <div className="mt-4 bg-white dark:bg-[#202C33] text-[#54656F] dark:text-slate-400 text-xs px-4 py-1.5 rounded-md font-medium">
-                            You started a conversation with {selectedChat.fullName}
-                        </div>
-                    </div>
                     ) : (
                         filteredMessages.map((message, index) => {
                             const currentDate = new Date(message.createdAt).toDateString();
@@ -429,7 +454,7 @@ export default function ChatWindow() {
             </div>
 
             {/* INPUT AREA */}
-            <div className="bg-white dark:bg-slate-800 border-t dark:border-slate-700 px-4 py-4 shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            <div className="bg-white dark:bg-slate-800 border-t-slate dark:border-slate-700 px-4 py-4 shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                 {iBlocked ? (
                     <div className="text-center text-slate-500 dark:text-slate-400 py-3 text-sm">You have blocked this user. Unblock them to send a message.</div>
                 ) : (

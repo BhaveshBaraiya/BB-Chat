@@ -113,7 +113,8 @@ export const verifyEmail = async (req, res) => {
                 _id: user._id,
                 fullName: user.fullName,
                 email: user.email,
-                profilePic: user.profilePic
+                profilePic: user.profilePic,
+                bio: user.bio
             }
         });
 
@@ -159,7 +160,8 @@ export const loginUser = async (req, res) => {
                 _id: user._id,
                 fullName: user.fullName,
                 email: user.email,
-                profilePic: user.profilePic
+                profilePic: user.profilePic,
+                bio: user.bio
             }
         });
 

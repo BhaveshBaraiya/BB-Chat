@@ -1,22 +1,33 @@
-import { useState } from "react";
+import { useState, useCallback, useRef } from "react";
 import axiosInstance from "../services/axios";
 
 export default function useSearchUsers() {
     const [users, setUsers] = useState([]);
-    const searchUsers = async (query) => {
+    const abortControllerRef = useRef(null);
+
+    const searchUsers = useCallback(async (query) => {
         if (!query.trim()) {
             setUsers([]);
             return;
         }
 
-        try {
-            const { data } = await axiosInstance.get(`/users/search?q=${query}`);
-            setUsers(data);
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
         }
-        catch (err) {
-            console.log("search failed:", err.response?.data || err);
-        }
-    }
+        
+        abortControllerRef.current = new AbortController();
 
-    return { users, searchUsers }
+        try {
+            const { data } = await axiosInstance.get(`/users/search?q=${query}`, {
+                signal: abortControllerRef.current.signal
+            });
+            setUsers(data);
+        } catch (err) {
+            if (err.name !== "CanceledError" && err.code !== "ERR_CANCELED") {
+                console.log("search failed:", err.response?.data || err);
+            }
+        }
+    }, []);
+
+    return { users, searchUsers };
 }

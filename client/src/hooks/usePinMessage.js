@@ -1,26 +1,19 @@
+import { useCallback } from "react";
 import { useDispatch } from "react-redux";
 import axiosInstance from "../services/axios";
 import { togglePinnedMessage } from "../redux/features/chatSlice";
 
 export default function usePinMessage() {
-
     const dispatch = useDispatch();
 
-    const pinMessage = async (messageId) => {
+    const pinMessage = useCallback(async (messageId) => {
         try {
-
-            await axiosInstance.put(
-                `/messages/pin/${messageId}`
-            );
-
-            dispatch(
-                togglePinnedMessage(messageId)
-            );
-
+            await axiosInstance.put(`/messages/pin/${messageId}`);
+            dispatch(togglePinnedMessage(messageId));
         } catch (error) {
             console.log(error);
         }
-    };
+    }, [dispatch]);
 
     return { pinMessage };
 }

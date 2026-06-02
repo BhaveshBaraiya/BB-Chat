@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   FiMessageSquare,
   FiCircle,
@@ -6,14 +7,14 @@ import {
   FiUserPlus
 } from "react-icons/fi";
 
-export default function LeftRail({ 
+const LeftRail = ({ 
     activeTab, 
     setActiveTab, 
     pendingCount, 
     hasUnreadChats, 
     hasNewStatus, 
     hasNewCommunityMsg 
-}) {
+}) => {
 
   const tabs = [
     { id: "chats", icon: <FiMessageSquare />, hasDot: hasUnreadChats },
@@ -54,4 +55,6 @@ export default function LeftRail({
       </div>  
     </div>
   );
-}
+};
+
+export default memo(LeftRail);

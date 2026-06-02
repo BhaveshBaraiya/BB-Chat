@@ -27,7 +27,7 @@ const userSchema = new mongoose.Schema(
 
         bio:{
         type:String,
-        default:"Hey there! I am using MERN Chat"
+        default:"Hey there! I am using BBChat"
         },
         blockedUsers: [
             {

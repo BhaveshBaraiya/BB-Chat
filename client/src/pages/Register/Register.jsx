@@ -37,6 +37,8 @@ export default function Register() {
             return toast.error("Please enter a valid email address");
         }
 
+        let isSuccess = false;
+
         const isStrong = validator.isStrongPassword(password, {
             minLength: 8,
             minLowercase: 1,
@@ -53,13 +55,17 @@ export default function Register() {
             setLoading(true);
             await axiosInstance.post("/auth/register", { fullName, email, password });            
             toast.success("Account created! Please check your email.");
+            isSuccess = true;
             navigate("/verify-email", { state: { email } });
         } catch (error) {
             toast.error(
                 error.response?.data?.message || "Registration failed. Please try again."
             );
+            isSuccess = true;
         } finally {
-            setLoading(false);
+            if (!isSuccess) {
+                setLoading(false);
+            }
         }
     };
 

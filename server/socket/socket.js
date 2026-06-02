@@ -27,27 +27,42 @@ export const initializeSocket = (server) => {
         socket.broadcast.emit("userCameOnline", { userId });
 
         if (userId) {
-            const undeliveredMessages = await MessageModel.find({
-                receiverId: userId,
-                delivered: false
-            });
+            try {
+                // OPTIMIZATION 1: Fetch messages AND populate users in a single query
+                const undeliveredMessages = await MessageModel.find({
+                    receiverId: userId,
+                    delivered: false
+                }).populate("senderId", "blockedUsers").populate("receiverId", "blockedUsers");
 
-            for (const msg of undeliveredMessages) {
-                const sender = await UserModel.findById(msg.senderId);
-                const receiver = await UserModel.findById(msg.receiverId);
+                const messageIdsToUpdate = [];
 
-                if (!receiver) continue;
+                for (const msg of undeliveredMessages) {
+                    const sender = msg.senderId;
+                    const receiver = msg.receiverId;
 
-                const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
-                if (blocked) continue;
+                    if (!sender || !receiver) continue;
 
-                msg.delivered = true;
-                await msg.save();
+                    const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
+                    if (blocked) continue;
 
-                const senderSocket = userSocketMap.get(msg.senderId.toString());
-                if (senderSocket) {
-                    io.to(senderSocket).emit("messageDelivered", { messageId: msg._id });
+                    // Add to our batch update list
+                    messageIdsToUpdate.push(msg._id);
+
+                    const senderSocket = userSocketMap.get(sender._id.toString());
+                    if (senderSocket) {
+                        io.to(senderSocket).emit("messageDelivered", { messageId: msg._id });
+                    }
                 }
+
+                // OPTIMIZATION 2: Single bulk update for all delivered messages
+                if (messageIdsToUpdate.length > 0) {
+                    await MessageModel.updateMany(
+                        { _id: { $in: messageIdsToUpdate } },
+                        { $set: { delivered: true } }
+                    );
+                }
+            } catch (err) {
+                console.error("Socket Connection Undelivered Messages Error:", err);
             }
         }
         
@@ -88,6 +103,7 @@ export const initializeSocket = (server) => {
                 const sender = await UserModel.findById(senderIdStr);
                 
                 if (!sender) return;                
+                
                 if (message.communityId) {
                     const CommunityModel = (await import("../models/CommunityModel.js")).default;
                     const commIdStr = typeof message.communityId === 'object' ? message.communityId._id.toString() : message.communityId.toString();
@@ -123,28 +139,12 @@ export const initializeSocket = (server) => {
             }
         });
 
-        socket.on("typing:start", async({ receiverId, userId }) => {
-            const sender = await UserModel.findById(userId);
-            const receiver = await UserModel.findById(receiverId);
-
-            if (!receiver) return;
-
-            const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
-            if (blocked) return;
-
+        socket.on("typing:start", ({ receiverId, userId }) => {
             const receiverSocket = userSocketMap.get(receiverId);
             if (receiverSocket) io.to(receiverSocket).emit("typing:start", { userId });
         });
 
-        socket.on("typing:stop", async({ receiverId, userId }) => {
-            const sender = await UserModel.findById(userId);
-            const receiver = await UserModel.findById(receiverId);
-
-            if (!receiver) return;
-
-            const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
-            if (blocked) return;
-
+        socket.on("typing:stop", ({ receiverId, userId }) => {
             const receiverSocket = userSocketMap.get(receiverId);
             if (receiverSocket) io.to(receiverSocket).emit("typing:stop", { userId });
         });

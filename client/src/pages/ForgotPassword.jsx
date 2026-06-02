@@ -50,6 +50,8 @@ export default function ForgotPassword() {
             return toast.error("Passwords do not match");
         }
 
+        let isSuccess = false;
+
         try {
             setLoading(true);
             const { data } = await axiosInstance.post("/auth/reset-password", {
@@ -58,11 +60,14 @@ export default function ForgotPassword() {
                 newPassword: formData.newPassword
             });
             toast.success(data.message);
+            isSuccess = true;
             navigate("/login");
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to reset password");
         } finally {
-            setLoading(false);
+            if (!isSuccess) {
+                setLoading(false);
+            }
         }
     };
 

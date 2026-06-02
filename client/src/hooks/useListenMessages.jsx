@@ -19,23 +19,30 @@ export default function useListenMessages() {
     const selectedChat = useSelector((state) => state.chat.selectedChat);
     const user = useSelector((state) => state.auth.user);
     const lastMessageId = useRef(null);
+    
+    const chatRef = useRef(selectedChat);
+    const userRef = useRef(user);
+
+    useEffect(() => { chatRef.current = selectedChat; }, [selectedChat]);
+    useEffect(() => { userRef.current = user; }, [user]);
 
     useEffect(() => {
-        if (!socket || !user) return;
+        if (!socket || !userRef.current) return;
+        
         const handleNewMessage = (newMessage) => {
             if (newMessage.communityId) return;
             if (lastMessageId.current === newMessage._id) return;
             lastMessageId.current = newMessage._id;
 
             const senderIdString = typeof newMessage.senderId === 'object' ? newMessage.senderId._id : newMessage.senderId;
-
-            if (selectedChat && selectedChat._id === senderIdString) {
+            
+            if (chatRef.current && chatRef.current._id === senderIdString) {
                 dispatch(addMessage(newMessage));
             } else {
                 dispatch(incrementUnreadCount(senderIdString));                
                 
-                const isGlobalMuted = user.globalNotificationsMuted === true;
-                const isChatMuted = user.mutedChats?.includes(senderIdString);
+                const isGlobalMuted = userRef.current.globalNotificationsMuted === true;
+                const isChatMuted = userRef.current.mutedChats?.includes(senderIdString);
                 
                 if (!isGlobalMuted && !isChatMuted) {
                     const senderObj = typeof newMessage.senderId === 'object' ? newMessage.senderId : null;
@@ -73,13 +80,14 @@ export default function useListenMessages() {
             const communityObj = typeof newMessage.communityId === 'object' ? newMessage.communityId : null;
             const commIdString = communityObj ? communityObj._id : newMessage.communityId;
             
-            if (selectedChat && selectedChat.isGroup && selectedChat._id === commIdString) {
+            // Use the ref here!
+            if (chatRef.current && chatRef.current.isGroup && chatRef.current._id === commIdString) {
                 dispatch(addMessage(newMessage));
             } else {
                 dispatch(incrementUnreadCount(commIdString)); 
 
-                const isGlobalMuted = user.globalNotificationsMuted === true;
-                const isChatMuted = user.mutedChats?.includes(commIdString);
+                const isGlobalMuted = userRef.current.globalNotificationsMuted === true;
+                const isChatMuted = userRef.current.mutedChats?.includes(commIdString);
 
                 if (!isGlobalMuted && !isChatMuted) {
                     const senderName = newMessage.senderId?.fullName || "A member";
@@ -141,5 +149,5 @@ export default function useListenMessages() {
             socket.off("typing:stop", handleTypingStop);
             socket.off("messageDelivered", handleDelivered);
         };
-    }, [socket, dispatch, selectedChat, user]);
+    }, [socket, dispatch]); 
 }

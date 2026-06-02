@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useDispatch } from "react-redux";
 import axiosInstance from "../services/axios";
 import { updateMessageReaction } from "../redux/features/chatSlice";
@@ -5,7 +6,7 @@ import { updateMessageReaction } from "../redux/features/chatSlice";
 export default function useReaction() {
     const dispatch = useDispatch();
 
-    const reactToMessage = async (messageId, emoji) => {
+    const reactToMessage = useCallback(async (messageId, emoji) => {
         try {
             const { data } = await axiosInstance.put(
                 "/messages/react",
@@ -15,7 +16,7 @@ export default function useReaction() {
         } catch (error) {
             console.log(error);
         }
-    };
+    }, [dispatch]);
 
     return { reactToMessage };
 }

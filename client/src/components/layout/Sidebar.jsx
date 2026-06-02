@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import UserList from "../chat/UserList";
 import { FiSearch } from "react-icons/fi";
 import SettingsContent from "../chat/SettingsContent";
@@ -6,7 +6,7 @@ import StatusContent from "../chat/StatusContent";
 import FriendsContent from "../chat/FriendsContent";
 import CommunitiesContent from "../chat/CommunitiesContent";
 
-export default function Sidebar({ activeTab, setActiveTab }) {
+const Sidebar = ({ activeTab, setActiveTab }) => {
     const [localChatFilter, setLocalChatFilter] = useState(""); 
 
     return (
@@ -50,4 +50,6 @@ export default function Sidebar({ activeTab, setActiveTab }) {
             
         </div>
     );
-}
+};
+
+export default memo(Sidebar);

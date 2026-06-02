@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useDispatch } from "react-redux";
 import axiosInstance from "../services/axios";
 import { removeMessage, markMessageDeletedForAll } from "../redux/features/chatSlice";
@@ -5,23 +6,23 @@ import { removeMessage, markMessageDeletedForAll } from "../redux/features/chatS
 export default function useDeleteMessage() {
     const dispatch = useDispatch();
 
-    const deleteForMe = async (messageId) => {
+    const deleteForMe = useCallback(async (messageId) => {
         try {
             await axiosInstance.put(`/messages/delete/me/${messageId}`);
             dispatch(removeMessage(messageId));
         } catch (error) {
             console.log(error);
         }
-    };
+    }, [dispatch]);
 
-    const deleteForEveryone = async (messageId) => {
+    const deleteForEveryone = useCallback(async (messageId) => {
         try {
             await axiosInstance.put(`/messages/delete/all/${messageId}`);
             dispatch(markMessageDeletedForAll(messageId));
         } catch (error) {
             console.log(error);
         }
-    };
+    }, [dispatch]);
 
     return { deleteForMe, deleteForEveryone };
 }

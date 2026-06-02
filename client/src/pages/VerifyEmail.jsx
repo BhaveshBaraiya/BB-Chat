@@ -31,21 +31,26 @@ export default function VerifyEmail() {
             return toast.error("Please enter the full 6-digit verification code");
         }
 
+        let isSuccess = false;
+
         try {
             setLoading(true);
             const { data } = await axiosInstance.post("/auth/verify-email", { email, otp });
             
-            // If the verification also returns the user/token to log them in automatically
             if (data.user) {
                 dispatch(setUser(data.user));
             }
             
             toast.success("Email verified successfully!");
+            isSuccess = true;
             navigate("/chat");
         } catch (error) {
             toast.error(error.response?.data?.message || "Invalid verification code.");
+            isSuccess = true;
         } finally {
-            setLoading(false);
+            if (!isSuccess) {
+                setLoading(false);
+            }
         }
     };
 

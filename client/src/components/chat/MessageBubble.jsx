@@ -1,4 +1,4 @@
-import { useContext, useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import EmojiPicker from "emoji-picker-react";
 import { BsCheck, BsCheckAll } from "react-icons/bs";
 import { FiCornerUpLeft, FiMoreVertical, FiCornerUpRight, FiSmile, FiEdit2, FiCopy, FiInfo, FiDownload, FiX, FiPlay, FiPause, FiMic } from "react-icons/fi";
@@ -98,7 +98,7 @@ const WhatsAppAudioPlayer = ({ src, own }) => {
     );
 };
 
-export default function MessageBubble({ messageObj, message, own, time, delivered, seen, onImageClick }) {
+const MessageBubble = ({ messageObj, message, own, time, delivered, seen, onImageClick }) => {
     const dispatch = useDispatch();
 
     const { deleteForMe, deleteForEveryone } = useDeleteMessage();
@@ -111,7 +111,6 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
     const [showInfo, setShowInfo] = useState(false);
     const [editing, setEditing] = useState(false);
     const [editedText, setEditedText] = useState(message);
-    const [isMobile, setIsMobile] = useState(false);
 
     const menuRef = useRef(null);
     const reactionRef = useRef(null);
@@ -126,21 +125,13 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
         (messageObj.documents && messageObj.documents.length > 0) || 
         (messageObj.audio && messageObj.audio !== "");
 
-    useEffect(() => {
-        const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768);
-        };
-        
-        checkMobile();
-        window.addEventListener('resize', checkMobile);
-        
-        return () => window.removeEventListener('resize', checkMobile);
-    }, []);
-
-    const actionVisible = showMenu || showReaction || showEmojiPicker;
+    const actionVisible = showMenu || showReaction || showEmojiPicker || showInfo;
 
     useEffect(() => {
+        if (!actionVisible) return;
+
         const handleClickOutside = (e) => {            
+            const isMobile = window.innerWidth < 768;
             if (isMobile) return; 
 
             if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false);
@@ -152,16 +143,13 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
         };
 
         document.addEventListener("mousedown", handleClickOutside);
-        
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
-    }, [isMobile]);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [actionVisible]);
 
     const handleTouchStart = () => {
+        const isMobile = window.innerWidth < 768;
         if (isMobile && !actionVisible) {
             if (longPressTimer.current) clearTimeout(longPressTimer.current);
-            
             longPressTimer.current = setTimeout(() => {
                 setShowMenu(true);
             }, 500); 
@@ -198,7 +186,6 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                 const imgUrl = getMediaUrl(messageObj.images[0]);
                 const response = await fetch(imgUrl);
                 const blob = await response.blob();
-                
                 await navigator.clipboard.write([
                     new ClipboardItem({ [blob.type]: blob })
                 ]);
@@ -214,6 +201,7 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
         setShowMenu(false);
         setShowReaction(false);
         setShowEmojiPicker(false);
+        setShowInfo(false);
     };
 
     const handleReplyClick = (e) => {
@@ -264,13 +252,15 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
         closeAllMobileModals();
     };
 
+    const isMobileUI = window.innerWidth < 768;
+
     return (
         <div 
             className={`flex w-full mb-3 group ${own ? "justify-end" : "justify-start"}`}
             ref={messageRef}
         >
             <div 
-                className={`flex items-center gap-2 max-w-[90%] sm:max-w-[85%] md:max-w-[90%] ${own ? "flex-row-reverse" : "flex-row"}`}
+                className={`flex items-center gap-2 max-w-[90%] sm:max-w-[85%] md:max-w-[70%] ${own ? "flex-row-reverse" : "flex-row"}`}
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
                 onTouchMove={handleTouchMove}
@@ -279,7 +269,7 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                     <div 
                         className={`relative px-3 sm:px-4 py-2 sm:py-3 rounded-2xl break-words w-full ${
                             own ? "bg-indigo-500 text-white" : "bg-white text-black shadow-sm border border-slate-100"
-                        } ${isMobile ? 'cursor-pointer' : ''}`}
+                        } ${isMobileUI ? 'cursor-pointer' : ''}`}
                     >
                         {messageObj.isForwarded && (
                             <div className={`flex items-center gap-1 text-[10px] sm:text-[11px] mb-2 italic opacity-80 ${own ? "text-white" : "text-slate-500"}`}>
@@ -325,14 +315,14 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                         ) : (
                             <div>
                                 {messageObj.images && messageObj.images.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mb-2">
+                                    <div className="flex flex-wrap gap-2 mb-2 justify-center">
                                         {messageObj.images.map((img, index) => (
                                             <img
                                                 key={index}
                                                 src={getMediaUrl(img)} 
                                                 alt="attachment"
                                                 onClick={(e) => { 
-                                                    e.stopPropagation();                                                     
+                                                    e.stopPropagation();                                                    
                                                     if(onImageClick) {
                                                         const resolvedImages = messageObj.images.map(i => getMediaUrl(i));
                                                         onImageClick(resolvedImages, index);
@@ -506,7 +496,7 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                 </div>
 
                 {/* Mobile Action Menu Modal */}
-                {isMobile && showMenu && (
+                {isMobileUI && showMenu && (
                     <div 
                         className="fixed inset-0 bg-black/40 z-[100]" 
                         onClick={(e) => {
@@ -571,7 +561,7 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                 )}
 
                 {/* Mobile Reaction Modal */}
-                {isMobile && showReaction && (
+                {isMobileUI && showReaction && (
                     <div 
                         className="fixed inset-0 bg-black/40 z-[100]" 
                         onClick={(e) => { e.stopPropagation(); setShowReaction(false); }}
@@ -614,7 +604,7 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
                 )}
 
                 {/* Mobile Emoji Picker Modal */}
-                {isMobile && showEmojiPicker && (
+                {isMobileUI && showEmojiPicker && (
                     <div 
                         className="fixed inset-0 bg-black/40 z-[100]" 
                         onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(false); }}
@@ -669,4 +659,6 @@ export default function MessageBubble({ messageObj, message, own, time, delivere
             )}
         </div>
     );
-}
+};
+
+export default memo(MessageBubble);
