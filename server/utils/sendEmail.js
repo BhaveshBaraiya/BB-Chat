@@ -2,8 +2,7 @@ import nodemailer from "nodemailer";
 
 export const sendVerificationEmail = async (email, otp) => {
     try {
-        const transporter = nodemailer.createTransport({
-            // 1. Remove `service: 'gmail'` and explicitly define the host
+        const transporter = nodemailer.createTransport({                
             host: 'smtp.gmail.com',
             port: 465,
             secure: true,
@@ -17,9 +16,9 @@ export const sendVerificationEmail = async (email, otp) => {
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: email,
-            subject: "Verify Your Account",
+            subject: "Verify Your Account - BBChat",
             html: `
-                <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px; border:1px solid #000">
+                <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px;">
                     <h2>Welcome to the App!</h2>
                     <p>Your 6-digit verification code is:</p>
                     <h1 style="font-size: 40px; letter-spacing: 5px; color: #4f46e5;">${otp}</h1>
@@ -29,8 +28,8 @@ export const sendVerificationEmail = async (email, otp) => {
         };
 
         await transporter.sendMail(mailOptions);
-    } catch (error) {
-        console.error("Email sending failed:", error);
+    } catch (error) {        
+        console.error("CRITICAL SMTP ERROR:", error);
         throw new Error("Could not send verification email");
     }
 };
