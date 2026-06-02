@@ -1,26 +1,20 @@
 import nodemailer from "nodemailer";
 
-// 1. Declare the variable outside to cache the connection
-let transporter = null;
-
 export const sendVerificationEmail = async (email, otp) => {
     try {
-        // 2. Lazy Initialization: Create the transporter only on the first run.
-        // This guarantees dotenv has finished loading your process.env variables.
-        if (!transporter) {
-            transporter = nodemailer.createTransport({
-                service: 'gmail',
-                auth: {
-                    user: process.env.EMAIL_USER,
-                    pass: process.env.EMAIL_PASS
-                }
-            });
-        }
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+            }
+        });
 
         const mailOptions = {
             from: `"BBChat Security" <${process.env.EMAIL_USER}>`, 
             to: email,
             subject: "Verify Your Account - BBChat",
+            text: `Welcome to BBChat! Your verification code is ${otp}. This code expires in 15 minutes.`,
             html: `
             <!DOCTYPE html>
             <html>
@@ -65,6 +59,7 @@ export const sendVerificationEmail = async (email, otp) => {
         };
 
         await transporter.sendMail(mailOptions);
+        
     } catch (error) {
         console.error("Email sending failed:", error);
         throw new Error("Could not send verification email");
