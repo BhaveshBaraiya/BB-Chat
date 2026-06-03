@@ -3,15 +3,14 @@ import nodemailer from "nodemailer";
 export const sendVerificationEmail = async (email, otp) => {
     try {
         const transporter = nodemailer.createTransport({
-            host: 'smtp.gmail.com',            
-            port: 465,
-            secure: true, 
+            host: 'smtp.gmail.com',
+            port: 465, // MUST be 465 for Render
+            secure: true, // MUST be true for port 465
             auth: {
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASS
             },
-
-            family: 4 
+            family: 4 // Keeps IPv4 active to prevent Google blocking cloud IPs
         });
 
         const mailOptions = {

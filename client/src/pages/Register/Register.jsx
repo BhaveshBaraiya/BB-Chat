@@ -40,9 +40,10 @@ export default function Register() {
         
         try {
             setLoading(true);
+            // FIXED: Pointing to /auth/register and passing fullName
             const { data } = await axiosInstance.post("/auth/register", { fullName, email, password });
             
-            toast.success(data.message || "Account created! Please check your email.");                    
+            toast.success(data.message || "Account created! Please verify your email.");            
             navigate("/verify-email", { state: { email } });
         } catch (error) {
             toast.error(error.response?.data?.message || "Registration failed");
@@ -111,6 +112,7 @@ export default function Register() {
                                 name="password"
                                 value={formData.password}
                                 onChange={handleChange}
+                                autoComplete="new-password"
                                 placeholder="Password (Min. 8 chars, 1 symbol)"
                                 className="w-full h-14 bg-slate-50 dark:bg-[#111b21] border border-slate-200 dark:border-slate-700 focus:border-indigo-500 dark:focus:border-indigo-400 rounded-lg pl-12 pr-12 outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 transition-colors"
                             />
