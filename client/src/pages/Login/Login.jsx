@@ -26,41 +26,35 @@ export default function Login() {
     };
 
     const handleSubmit = async (e) => {
-        e.preventDefault();
-        
-        const email = validator.normalizeEmail(formData.email.trim());
-        const password = formData.password;
+    e.preventDefault();
+    
+    const email = formData.email.trim();
+    const password = formData.password;
 
-        if (!email || !password) {
-            return toast.error("All fields required");
+    if (!email || !password) {
+        return toast.error("All fields required");
+    }
+
+    if (!validator.isEmail(email)) {
+        return toast.error("Invalid email format");
+    }
+
+    try {
+        setLoading(true);
+        const { data } = await axiosInstance.post("/auth/login", { email, password });
+        dispatch(setUser(data.user));
+        toast.success(data.message || "Welcome back!");
+        navigate("/chat");
+    } catch (error) {
+        if (error.response?.status === 403 && error.response?.data?.isVerified === false) {
+            toast.error("Please verify your email before logging in.");
+            return navigate("/verify-email", { state: { email } });
         }
-
-        if (!validator.isEmail(email)) {
-            return toast.error("Invalid email format");
-        }
-
-        let isSuccess = false;
-
-        try {
-            setLoading(true);
-            const { data } = await axiosInstance.post("/auth/login", { email, password });
-            dispatch(setUser(data.user));
-            toast.success(data.message || "Welcome back!");
-            isSuccess = true;
-            navigate("/chat");
-        } catch (error) {
-            if (error.response?.status === 403 && error.response?.data?.isVerified === false) {
-                toast.error("Please verify your email before logging in.");
-                isSuccess = true;
-                return navigate("/verify-email", { state: { email } });
-            }
-            toast.error(error.response?.data?.message || "Login failed");
-        } finally {
-            if (!isSuccess) {
-                setLoading(false);
-            }         
-        }
-    };
+        toast.error(error.response?.data?.message || "Login failed");
+    } finally {
+        setLoading(false);
+    }
+};
 
     return (
         <div className="min-h-screen bg-[#e5e7eb] dark:bg-[#111b21] flex items-center justify-center p-4 sm:p-8 relative font-sans">

@@ -25,44 +25,29 @@ export default function Register() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
         const fullName = formData.fullName.trim();
-        const email = validator.normalizeEmail(formData.email.trim());
+        const email = formData.email.trim();
         const password = formData.password;
 
         if (!fullName || !email || !password) {
-            return toast.error("All fields are required");
+            return toast.error("All fields required");
         }
 
         if (!validator.isEmail(email)) {
-            return toast.error("Please enter a valid email address");
+            return toast.error("Invalid email format");
         }
-
-        const isStrong = validator.isStrongPassword(password, {
-            minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1
-        });
-
-        if (!isStrong) {
-            return toast.error("Password must be at least 8 characters long, including an uppercase letter, a number, and a symbol.");
-        }
-
-        let isSuccess = false;
-
+        
         try {
             setLoading(true);
-            const { data } = await axiosInstance.post("/auth/register", { fullName, email, password });            
-            toast.success(data.message || "Account created! Please check your email.");
+            const { data } = await axiosInstance.post("/auth/register", { fullName, email, password });
             
-            isSuccess = true;
+            toast.success(data.message || "Account created! Please check your email.");                    
             navigate("/verify-email", { state: { email } });
-
         } catch (error) {
-            toast.error(
-                error.response?.data?.message || "Registration failed. Please try again."
-            );
-        } finally {        
-            if (!isSuccess) {
-                setLoading(false);
-            }
+            toast.error(error.response?.data?.message || "Registration failed");
+        } finally {
+            setLoading(false);        
         }
     };
 

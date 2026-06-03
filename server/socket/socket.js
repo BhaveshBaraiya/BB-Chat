@@ -27,8 +27,7 @@ export const initializeSocket = (server) => {
         socket.broadcast.emit("userCameOnline", { userId });
 
         if (userId) {
-            try {
-                // OPTIMIZATION 1: Fetch messages AND populate users in a single query
+            try {                
                 const undeliveredMessages = await MessageModel.find({
                     receiverId: userId,
                     delivered: false
@@ -45,7 +44,6 @@ export const initializeSocket = (server) => {
                     const blocked = sender.blockedUsers?.includes(receiver._id) || receiver.blockedUsers?.includes(sender._id);
                     if (blocked) continue;
 
-                    // Add to our batch update list
                     messageIdsToUpdate.push(msg._id);
 
                     const senderSocket = userSocketMap.get(sender._id.toString());
@@ -54,7 +52,6 @@ export const initializeSocket = (server) => {
                     }
                 }
 
-                // OPTIMIZATION 2: Single bulk update for all delivered messages
                 if (messageIdsToUpdate.length > 0) {
                     await MessageModel.updateMany(
                         { _id: { $in: messageIdsToUpdate } },
