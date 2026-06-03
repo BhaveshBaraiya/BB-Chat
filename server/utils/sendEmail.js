@@ -1,35 +1,34 @@
-import nodemailer from "nodemailer";
+import axios from "axios";
 
 export const sendVerificationEmail = async (email, otp) => {
-    try {
-        const transporter = nodemailer.createTransport({
-            host: 'smtp.gmail.com',
-            port: 465, // MUST be 465 for Render
-            secure: true, // MUST be true for port 465
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS
-            },
-            family: 4 // Keeps IPv4 active to prevent Google blocking cloud IPs
+    try {        
+        const expireTime = new Date(Date.now() + 15 * 60 * 1000).toLocaleTimeString('en-IN', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            timeZone: 'Asia/Kolkata' 
         });
 
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: email,
-            subject: "Verify Your Account",
-            html: `
-                <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px;">
-                    <h2>Welcome to the App!</h2>
-                    <p>Your 6-digit verification code is:</p>
-                    <h1 style="font-size: 40px; letter-spacing: 5px; color: #4f46e5;">${otp}</h1>
-                    <p>This code will expire in 15 minutes.</p>
-                </div>
-            `
+        const payload = {
+            service_id: process.env.EMAILJS_SERVICE_ID,
+            template_id: process.env.EMAILJS_TEMPLATE_ID,
+            user_id: process.env.EMAILJS_PUBLIC_KEY,
+            accessToken: process.env.EMAILJS_PRIVATE_KEY,
+            template_params: {
+                to_email: email,    
+                passcode: otp,
+                time: expireTime
+            }
         };
 
-        await transporter.sendMail(mailOptions);
+        await axios.post("https://api.emailjs.com/api/v1.0/email/send", payload, {
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+
+        console.log(`Email sent successfully to ${email} via EmailJS!`);
     } catch (error) {
-        console.error("CRITICAL SMTP ERROR:", error);
+        console.error("CRITICAL EMAIL ERROR:", error.response?.data || error.message);
         throw new Error("Could not send verification email");
     }
 };
