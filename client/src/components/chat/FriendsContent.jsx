@@ -12,7 +12,11 @@ export default function FriendsContent() {
     const [pendingRequests, setPendingRequests] = useState([]);
     const [friends, setFriends] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [isSearching, setIsSearching] = useState(false); // Optional: Helps track if search is active
+    const [isSearching, setIsSearching] = useState(false);
+
+    // Modals states
+    const [selectedProfile, setSelectedProfile] = useState(null);
+    const [viewImage, setViewImage] = useState(null);
 
     useEffect(() => {
         fetchPendingRequests();
@@ -91,6 +95,7 @@ export default function FriendsContent() {
         return () => clearTimeout(delayDebounceFn);
     }, [searchQuery, friends, pendingRequests]);
 
+    // Added logic to close modals if actions are taken from inside them
     const sendRequest = async (targetUserId) => {
         try {
             setLoading(true);
@@ -98,6 +103,7 @@ export default function FriendsContent() {
             socket?.emit("friend:send_request", { targetUserId });
             toast.success("Friend request sent!");
             setSearchResults(prev => prev.filter(u => u._id !== targetUserId));
+            if (selectedProfile?._id === targetUserId) setSelectedProfile(null);
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to send request");
         } finally { setLoading(false); }
@@ -112,9 +118,8 @@ export default function FriendsContent() {
             
             const acceptedUser = pendingRequests.find(u => u._id === senderId);
             setPendingRequests(prev => prev.filter(u => u._id !== senderId));
-            if (acceptedUser) {
-                setFriends(prev => [...prev, acceptedUser]);
-            }
+            if (acceptedUser) setFriends(prev => [...prev, acceptedUser]);
+            if (selectedProfile?._id === senderId) setSelectedProfile(null);
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to accept request");
         } finally { setLoading(false); }
@@ -126,6 +131,7 @@ export default function FriendsContent() {
             await axiosInstance.post("/friends/reject", { senderId });
             toast.success("Request rejected.");
             setPendingRequests(prev => prev.filter(u => u._id !== senderId));
+            if (selectedProfile?._id === senderId) setSelectedProfile(null);
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to reject request");
         } finally { setLoading(false); }
@@ -137,13 +143,14 @@ export default function FriendsContent() {
             await axiosInstance.post("/friends/unfriend", { targetId });
             toast.success("Friend removed.");
             setFriends(prev => prev.filter(u => u._id !== targetId));
+            if (selectedProfile?._id === targetId) setSelectedProfile(null);
         } catch (error) {
             toast.error("Failed to remove friend");
         } finally { setLoading(false); }
     };
 
     return (
-        <div className="flex flex-col h-full bg-white">
+        <div className="flex flex-col h-full bg-white relative">
             <div className="p-5 border-b shrink-0">
                 <h3 className="text-sm font-semibold text-slate-500 mb-3 uppercase tracking-wider">Add a Friend</h3>
                 <div className="relative">
@@ -158,7 +165,7 @@ export default function FriendsContent() {
             </div>
 
             <div className="flex-1 overflow-y-auto">
-                {/* Search Results & Empty State Logic */}
+                {/* Search Results */}
                 {searchQuery.trim() !== "" && (
                     <div className="p-2 border-b">
                         {isSearching ? (
@@ -166,21 +173,36 @@ export default function FriendsContent() {
                                 <p className="text-sm text-slate-400">Searching...</p>
                             </div>
                         ) : searchResults.length > 0 ? (
-                            searchResults.map(user => (
-                                <div key={user._id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50">
-                                    <div className="flex items-center gap-3 overflow-hidden">
-                                        <img src={user.profilePic || `https://ui-avatars.com/api/?name=${user.fullName}`} alt="profile" className="w-10 h-10 rounded-full shrink-0 object-cover" />
-                                        <div className="truncate">
-                                            <p className="font-medium text-sm text-slate-800 truncate">{user.fullName}</p>
-                                            {/* Replaced user.email with user.bio for privacy */}
-                                            <p className="text-xs text-slate-500 truncate">{user.bio || "Available"}</p>
+                            searchResults.map(user => {
+                                const profileImg = user.profilePic || `https://ui-avatars.com/api/?name=${user.fullName}`;
+                                return (
+                                    <div 
+                                        key={user._id} 
+                                        onClick={() => setSelectedProfile(user)}
+                                        className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 cursor-pointer"
+                                    >
+                                        <div className="flex items-center gap-3 overflow-hidden">
+                                            <img 
+                                                src={profileImg} 
+                                                alt="profile" 
+                                                onClick={(e) => { e.stopPropagation(); setViewImage(profileImg); }}
+                                                className="w-10 h-10 rounded-full shrink-0 object-cover cursor-pointer hover:opacity-80 transition" 
+                                            />
+                                            <div className="truncate">
+                                                <p className="font-medium text-sm text-slate-800 truncate">{user.fullName}</p>
+                                                <p className="text-xs text-slate-500 truncate">{user.bio || "Available"}</p>
+                                            </div>
                                         </div>
+                                        <button 
+                                            disabled={loading} 
+                                            onClick={(e) => { e.stopPropagation(); sendRequest(user._id); }} 
+                                            className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center hover:bg-indigo-200 transition shrink-0"
+                                        >
+                                            <FiUserPlus size={16} />
+                                        </button>
                                     </div>
-                                    <button disabled={loading} onClick={() => sendRequest(user._id)} className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center hover:bg-indigo-200 transition shrink-0">
-                                        <FiUserPlus size={16} />
-                                    </button>
-                                </div>
-                            ))
+                                );
+                            })
                         ) : (
                             <div className="py-8 flex flex-col items-center justify-center gap-2">
                                 <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-1">
@@ -195,6 +217,7 @@ export default function FriendsContent() {
                     </div>
                 )}
 
+                {/* Pending Requests */}
                 <div className="p-2 border-b">
                     <h3 className="px-3 pt-4 pb-2 text-sm font-semibold text-slate-500 uppercase tracking-wider">
                         Pending Requests ({pendingRequests.length})
@@ -203,28 +226,49 @@ export default function FriendsContent() {
                     {pendingRequests.length === 0 ? (
                         <p className="px-3 text-sm text-slate-400">No pending requests.</p>
                     ) : (
-                        pendingRequests.map(user => (
-                            <div key={user._id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 bg-indigo-50/50 mb-1">
-                                <div className="flex items-center gap-3 overflow-hidden">
-                                    <img src={user.profilePic || `https://ui-avatars.com/api/?name=${user.fullName}`} alt="profile" className="w-10 h-10 object-cover rounded-full shrink-0" />
-                                    <div className="truncate">
-                                        <p className="font-medium text-sm text-slate-800 truncate">{user.fullName}</p>
-                                        <p className="text-xs text-indigo-500 font-medium truncate">Wants to be friends</p>
+                        pendingRequests.map(user => {
+                            const profileImg = user.profilePic || `https://ui-avatars.com/api/?name=${user.fullName}`;
+                            return (
+                                <div 
+                                    key={user._id} 
+                                    onClick={() => setSelectedProfile(user)}
+                                    className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 bg-indigo-50/50 mb-1 cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-3 overflow-hidden">
+                                        <img 
+                                            src={profileImg} 
+                                            alt="profile" 
+                                            onClick={(e) => { e.stopPropagation(); setViewImage(profileImg); }}
+                                            className="w-10 h-10 object-cover rounded-full shrink-0 cursor-pointer hover:opacity-80 transition" 
+                                        />
+                                        <div className="truncate">
+                                            <p className="font-medium text-sm text-slate-800 truncate">{user.fullName}</p>
+                                            <p className="text-xs text-indigo-500 font-medium truncate">Wants to be friends</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 shrink-0">
+                                        <button 
+                                            disabled={loading} 
+                                            onClick={(e) => { e.stopPropagation(); acceptRequest(user._id); }} 
+                                            className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition flex items-center gap-1"
+                                        >
+                                            <FiCheck size={14} /> Accept
+                                        </button>
+                                        <button 
+                                            disabled={loading} 
+                                            onClick={(e) => { e.stopPropagation(); rejectRequest(user._id); }} 
+                                            className="px-3 py-1.5 rounded-lg bg-red-50 text-red-500 text-xs font-semibold hover:bg-red-100 transition flex items-center gap-1"
+                                        >
+                                            <FiX size={14} /> Reject
+                                        </button>
                                     </div>
                                 </div>
-                                <div className="flex gap-2 shrink-0">
-                                    <button disabled={loading} onClick={() => acceptRequest(user._id)} className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition flex items-center gap-1">
-                                        <FiCheck size={14} /> Accept
-                                    </button>
-                                    <button disabled={loading} onClick={() => rejectRequest(user._id)} className="px-3 py-1.5 rounded-lg bg-red-50 text-red-500 text-xs font-semibold hover:bg-red-100 transition flex items-center gap-1">
-                                        <FiX size={14} /> Reject
-                                    </button>
-                                </div>
-                            </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
 
+                {/* My Friends */}
                 <div className="p-2">
                     <h3 className="px-3 pt-4 pb-2 text-sm font-semibold text-slate-500 uppercase tracking-wider">
                         My Friends ({friends.length})
@@ -233,23 +277,140 @@ export default function FriendsContent() {
                     {friends.length === 0 ? (
                         <p className="px-3 text-sm text-slate-400">You haven't added any friends yet.</p>
                     ) : (
-                        friends.map(user => (
-                            <div key={user._id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 group transition-colors">
-                                <div className="flex items-center gap-3 overflow-hidden">
-                                    <img src={user.profilePic || `https://ui-avatars.com/api/?name=${user.fullName}`} alt="profile" className="w-10 h-10 object-cover rounded-full shrink-0" />
-                                    <div className="truncate">
-                                        <p className="font-medium text-sm text-slate-800 truncate">{user.fullName}</p>
-                                        <p className="text-xs text-slate-500 truncate">{user.bio || "Available"}</p>
+                        friends.map(user => {
+                            const profileImg = user.profilePic || `https://ui-avatars.com/api/?name=${user.fullName}`;
+                            return (
+                                <div 
+                                    key={user._id} 
+                                    onClick={() => setSelectedProfile(user)}
+                                    className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 group transition-colors cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-3 overflow-hidden">
+                                        <img 
+                                            src={profileImg} 
+                                            alt="profile" 
+                                            onClick={(e) => { e.stopPropagation(); setViewImage(profileImg); }}
+                                            className="w-10 h-10 object-cover rounded-full shrink-0 cursor-pointer hover:opacity-80 transition" 
+                                        />
+                                        <div className="truncate">
+                                            <p className="font-medium text-sm text-slate-800 truncate">{user.fullName}</p>
+                                            <p className="text-xs text-slate-500 truncate">{user.bio || "Available"}</p>
+                                        </div>
                                     </div>
+                                    <button 
+                                        disabled={loading} 
+                                        onClick={(e) => { e.stopPropagation(); unfriend(user._id); }} 
+                                        title="Unfriend" 
+                                        className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100 transition shrink-0 opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+                                    >
+                                        <FiUserMinus size={16} />
+                                    </button>
                                 </div>
-                                <button disabled={loading} onClick={() => unfriend(user._id)} title="Unfriend" className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100 transition shrink-0 opacity-100 lg:opacity-0 lg:group-hover:opacity-100">
-                                    <FiUserMinus size={16} />
-                                </button>
-                            </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
             </div>
+
+            {/* --- MODALS --- */}
+            
+            {/* 1. Profile Modal */}
+            {selectedProfile && (
+                <div 
+                    className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4"
+                    onClick={() => setSelectedProfile(null)}
+                >
+                    <div 
+                        className="bg-white rounded-2xl w-full max-w-sm p-6 relative flex flex-col items-center shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button 
+                            onClick={() => setSelectedProfile(null)}
+                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 bg-slate-100 rounded-full p-1"
+                        >
+                            <FiX size={20} />
+                        </button>
+                        
+                        <img 
+                            src={selectedProfile.profilePic || `https://ui-avatars.com/api/?name=${selectedProfile.fullName}`} 
+                            alt="profile" 
+                            className="w-24 h-24 rounded-full object-cover border-4 border-slate-100 cursor-pointer hover:opacity-90"
+                            onClick={() => setViewImage(selectedProfile.profilePic || `https://ui-avatars.com/api/?name=${selectedProfile.fullName}`)}
+                        />
+                        
+                        <h2 className="text-xl font-bold text-slate-800 mt-4">{selectedProfile.fullName}</h2>
+                        <p className="text-sm text-slate-500 mt-1 text-center">{selectedProfile.bio || "Hey there! I am using BBChat"}</p>
+
+                        {/* DYNAMIC MODAL BUTTONS based on user status */}
+                        {(() => {
+                            const isFriend = friends.some(f => f._id === selectedProfile._id);
+                            const isPending = pendingRequests.some(p => p._id === selectedProfile._id);
+
+                            if (isFriend) {
+                                return (
+                                    <button 
+                                        disabled={loading} 
+                                        onClick={() => unfriend(selectedProfile._id)} 
+                                        className="w-full mt-6 bg-red-50 text-red-600 py-2.5 rounded-xl font-medium hover:bg-red-100 transition flex items-center justify-center gap-2"
+                                    >
+                                        <FiUserMinus size={18} /> Remove Friend
+                                    </button>
+                                );
+                            } else if (isPending) {
+                                return (
+                                    <div className="flex gap-3 w-full mt-6">
+                                        <button 
+                                            disabled={loading} 
+                                            onClick={() => acceptRequest(selectedProfile._id)} 
+                                            className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl font-medium hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+                                        >
+                                            <FiCheck size={18} /> Accept
+                                        </button>
+                                        <button 
+                                            disabled={loading} 
+                                            onClick={() => rejectRequest(selectedProfile._id)} 
+                                            className="flex-1 bg-red-50 text-red-600 py-2.5 rounded-xl font-medium hover:bg-red-100 transition flex items-center justify-center gap-2"
+                                        >
+                                            <FiX size={18} /> Reject
+                                        </button>
+                                    </div>
+                                );
+                            } else {
+                                return (
+                                    <button 
+                                        disabled={loading} 
+                                        onClick={() => sendRequest(selectedProfile._id)} 
+                                        className="w-full mt-6 bg-indigo-600 text-white py-2.5 rounded-xl font-medium hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+                                    >
+                                        <FiUserPlus size={18} /> Send Friend Request
+                                    </button>
+                                );
+                            }
+                        })()}
+                    </div>
+                </div>
+            )}
+
+            {/* 2. Full Screen Image Modal */}
+            {viewImage && (
+                <div 
+                    className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 cursor-zoom-out"
+                    onClick={() => setViewImage(null)}
+                >
+                    <button 
+                        onClick={() => setViewImage(null)}
+                        className="absolute top-6 right-6 text-white hover:text-slate-300"
+                    >
+                        <FiX size={32} />
+                    </button>
+                    <img 
+                        src={viewImage} 
+                        alt="fullscreen" 
+                        className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl cursor-default"
+                        onClick={(e) => e.stopPropagation()} 
+                    />
+                </div>
+            )}
         </div>
     );
 }

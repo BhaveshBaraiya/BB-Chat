@@ -86,6 +86,10 @@ export const updateProfile = async (req, res) => {
             user.profilePic = profilePic;
         }
 
+        if (fullName) user.fullName = fullName;
+
+        if (bio !== undefined) user.bio = bio;
+
         await user.save();
         const io = getIO();
 

@@ -15,7 +15,7 @@ export const searchUsers = async (req, res) => {
                 { fullName: { $regex: query, $options: "i" } },
                 { email: query.toLowerCase() }
             ]
-        }).select("_id fullName email profilePic");
+        }).select("_id fullName email profilePic bio");
 
         res.status(200).json({ success: true, users });
     } catch (error) {
@@ -132,7 +132,7 @@ export const rejectFriendRequest = async (req, res) => {
 export const getPendingRequests = async (req, res) => {
     try {
         const user = await UserModel.findById(req.user._id)
-            .populate("friendRequests", "_id fullName email profilePic");
+            .populate("friendRequests", "_id fullName email profilePic bio");
         res.status(200).json({ success: true, requests: user.friendRequests });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
